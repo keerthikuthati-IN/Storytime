@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import NanaLunaAvatar from './NanaLunaAvatar';
-import type { AvatarMood } from './NanaLunaAvatar';
 import ProgressBar from './ProgressBar';
 import type { GeneratedStory, StoryParagraph } from '@/lib/claude';
 import type { Narrator } from '@/lib/narrators';
@@ -127,7 +125,6 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
 
   const currentPara: StoryParagraph | null = paraIndex >= 0 ? story.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';
-  const avatarMood: AvatarMood = currentMood as AvatarMood;
   const totalSlides = story.paragraphs.length;
 
   // ── TTS (Sarvam primary, Web Speech fallback) ──
@@ -259,11 +256,11 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
         </motion.div>
       </AnimatePresence>
 
-      {/* Mood-specific floating emojis — environment tells the story */}
+      {/* Mood-specific floating emojis — fly over everything including the text card */}
       <AnimatePresence mode="wait">
         <motion.div
           key={currentMood}
-          className="absolute inset-0"
+          className="absolute inset-0 z-20 pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -273,20 +270,11 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
         </motion.div>
       </AnimatePresence>
 
-      {/* Avatar — fills top ~60% of screen */}
-      <div className="relative z-10 w-full flex flex-col items-center" style={{ height: '60vh' }}>
-        <NanaLunaAvatar narrator={narrator} mood={avatarMood} speaking={speaking && !paused} size={480} />
-        <div className="text-center -mt-10">
-          <p className="font-baloo font-bold text-lg text-gray-800">{narrator.name}</p>
-          <p className="font-nunito text-xs text-gray-400 capitalize font-semibold tracking-wide">{currentMood}</p>
-        </div>
-      </div>
-
-      {/* Top bar — overlaid on top of avatar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-10 pb-2">
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-10 pb-2">
         <button
           onClick={handleExit}
-          className="text-gray-500 font-nunito text-sm bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm"
+          className="text-gray-600 font-nunito text-sm bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm"
         >
           ← Exit
         </button>
@@ -297,35 +285,52 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
         )}
       </div>
 
-      {/* Story text — frosted card floating at bottom */}
-      <div className="relative z-10 flex-1 flex flex-col justify-end px-5 pb-2">
+      {/* Story text — centrepiece */}
+      <div className="relative z-10 flex-1 flex flex-col justify-center px-5 pt-24 pb-2">
         <AnimatePresence mode="wait">
           <motion.div
             key={paraIndex}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.45 }}
-            className="bg-white/75 backdrop-blur-md rounded-3xl px-6 py-5 shadow-soft text-center"
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white/80 backdrop-blur-md rounded-3xl px-7 py-8 shadow-soft"
           >
             {paraIndex === -1 ? (
-              <>
-                <p className="font-baloo font-bold text-lg text-gray-800 mb-2">{story.title}</p>
-                <p className="font-nunito text-gray-600 text-base leading-relaxed italic">
+              <div className="text-center">
+                <p className="font-baloo font-bold text-2xl text-gray-800 mb-3 leading-snug">
+                  {story.title}
+                </p>
+                <p className="font-nunito text-gray-600 text-lg leading-relaxed italic">
                   {story.narrator_intro}
                 </p>
-              </>
+              </div>
             ) : (
-              <p className="font-nunito text-gray-700 text-base leading-relaxed">
+              <p className="font-nunito text-gray-700 text-lg leading-relaxed text-center">
                 {currentPara?.text}
               </p>
             )}
+
+            {/* Nani identity pill — subtle, inside the card */}
+            <div className="flex items-center justify-center gap-1.5 mt-6">
+              {speaking && !paused && (
+                <motion.div className="flex gap-0.5 items-end h-3 mr-1">
+                  {[0,1,2].map(i => (
+                    <motion.div key={i} className="w-0.5 bg-coral rounded-full"
+                      animate={{ height: ['30%','100%','30%'] }}
+                      transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.12 }} />
+                  ))}
+                </motion.div>
+              )}
+              <span className="text-base">{narrator.emoji}</span>
+              <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
+            </div>
           </motion.div>
         </AnimatePresence>
       </div>
 
       {/* Controls */}
-      <div className="relative z-10 pb-8 pt-3 px-6">
+      <div className="relative z-30 pb-8 pt-3 px-6">
         <div className="flex items-center justify-between">
           <motion.button whileTap={{ scale: 0.88 }} onClick={goPrev} disabled={paraIndex <= -1}
             className="w-12 h-12 rounded-2xl bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl disabled:opacity-30 shadow-sm">
@@ -354,43 +359,54 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   );
 }
 
-function EndScreen({ narrator, onAgain, onEnd }: { narrator: Narrator; onAgain: () => void; onEnd: () => void }) {
-  useEffect(() => {
-    import('canvas-confetti').then(({ default: confetti }) => {
-      confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF'] });
-    });
-  }, []);
+const END_STARS = Array.from({ length: 12 }, (_, i) => ({
+  id: i,
+  top:   `${10 + (i * 13) % 70}%`,
+  left:  `${5  + (i * 17) % 88}%`,
+  delay: i * 0.12,
+  size:  i % 3 === 0 ? 22 : 16,
+  emoji: i % 4 === 0 ? '✨' : i % 3 === 0 ? '⭐' : '✦',
+}));
 
+function EndScreen({ narrator, onAgain, onEnd }: { narrator: Narrator; onAgain: () => void; onEnd: () => void }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#FFF8F0] to-[#FFE8D6] flex flex-col items-center justify-center px-6 text-center">
-      <motion.div initial={{ scale: 0, rotate: -15 }} animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: 'spring', stiffness: 200, damping: 12 }} className="text-8xl mb-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#F5F0FF] to-[#EDE8F8] flex flex-col items-center justify-center px-6 text-center relative overflow-hidden">
+
+      {/* Soft star field — no confetti, just gentle wonder */}
+      {END_STARS.map(s => (
+        <motion.div
+          key={s.id}
+          className="absolute pointer-events-none select-none"
+          style={{ top: s.top, left: s.left, fontSize: s.size }}
+          initial={{ opacity: 0, scale: 0.4 }}
+          animate={{ opacity: 0.55, scale: 1 }}
+          transition={{ delay: s.delay, duration: 0.8, ease: 'easeOut' }}
+        >
+          {s.emoji}
+        </motion.div>
+      ))}
+
+      <motion.div initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 180, damping: 14 }} className="text-8xl mb-4 relative z-10">
         {narrator.emoji}
       </motion.div>
       <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-        className="font-baloo font-black text-4xl text-gray-800 mb-2">
-        The End!
+        className="font-baloo font-black text-4xl text-gray-700 mb-2 relative z-10">
+        The End
       </motion.h1>
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-        className="font-nunito text-gray-500 text-base mb-10">
-        What a wonderful story! 🌟
+        className="font-nunito text-gray-400 text-base mb-10 relative z-10">
+        Sweet dreams, kanna 🌙
       </motion.p>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
-        className="w-full space-y-3">
-        <button onClick={onAgain} className="w-full bg-coral text-white py-4 rounded-3xl font-baloo font-bold text-lg shadow-card">
+        className="w-full space-y-3 relative z-10">
+        <button onClick={onAgain} className="w-full bg-coral text-white py-4 rounded-3xl font-nunito font-bold text-base shadow-glow">
           🔁 Hear it again
         </button>
-        <button onClick={onEnd} className="w-full bg-white text-gray-700 py-4 rounded-3xl font-baloo font-bold text-lg border-2 border-gray-100">
+        <button onClick={onEnd} className="w-full bg-white text-gray-700 py-4 rounded-3xl font-nunito font-bold text-base border border-gray-100">
           📚 Pick another story
         </button>
       </motion.div>
-      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.0 }}
-        className="font-nunito text-[10px] text-gray-300 mt-8">
-        🐻 Bear character by{' '}
-        <a href="https://rive.app/community/files/2244-7248-animated-login-character/"
-          target="_blank" rel="noopener noreferrer" className="underline">JcToon</a>
-        {' '}· CC BY 4.0
-      </motion.p>
     </div>
   );
 }

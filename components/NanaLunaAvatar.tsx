@@ -1,7 +1,3 @@
-// Bear character: "Animated Login Character" by JcToon
-// Source: https://rive.app/community/files/2244-7248-animated-login-character/
-// License: CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
-
 'use client';
 
 import { useEffect } from 'react';
@@ -11,14 +7,22 @@ import type { Narrator } from '@/lib/narrators';
 
 export type AvatarMood = 'happy' | 'magical' | 'calm' | 'exciting' | 'tense';
 
-const SM_NAME = 'Login Machine';
+// State machine from public/rive/nani.riv (Login State Machine)
+// States: look_idle → Blend. Single numeric input "type" drives the blend.
+const SM_NAME = 'Login State Machine';
 const INPUT = {
-  isChecking:  'isChecking',
-  numLook:     'numLook',
-  isHandsUp:   'isHandsUp',
-  trigSuccess: 'trigSuccess',
-  trigFail:    'trigFail',
+  type: 'type', // number — blends between expressions; range appears to be 0–100
 };
+
+// Mood → type value mapping (tune these after watching live behaviour)
+const MOOD_TYPE: Record<AvatarMood, number> = {
+  calm:     0,   // resting look_idle
+  happy:    40,  // mild positive blend
+  magical:  60,  // dreamy blend
+  exciting: 80,  // animated blend
+  tense:    20,  // slight concern blend
+};
+const SPEAKING_TYPE = 50; // mid-blend when narrating
 
 const MOOD_AURA: Record<AvatarMood, string> = {
   happy:    '#FFD93D',
@@ -36,7 +40,7 @@ const MOOD_BADGE: Record<AvatarMood, string> = {
   tense:    '😟',
 };
 
-// CSS filter per mood — visually shifts Bruno's appearance
+// CSS filter per mood — visually shifts Nani's appearance
 const MOOD_FILTER: Record<AvatarMood, string> = {
   happy:    'saturate(1.25) hue-rotate(-5deg)',
   magical:  'saturate(1.5) brightness(1.06) hue-rotate(-15deg)',
@@ -59,55 +63,38 @@ interface Props {
 
 export default function NanaLunaAvatar({ mood, speaking, size = 300 }: Props) {
   const { RiveComponent, rive } = useRive({
-    src: '/rive/nana-luna.riv',
-    artboard: 'Teddy',
+    src: '/rive/nani.riv',
+    // artboard: leave unset — uses the default artboard in the file
     stateMachines: SM_NAME,
     autoplay: true,
-    onLoadError: () => console.warn(
-      'Nana Luna: Rive file not found at /rive/nana-luna.riv — ' +
-      'download from https://rive.app/community/files/2244-7248-animated-login-character/'
-    ),
+    onLoadError: () => console.warn('[Nani] Rive file not found at /rive/nani.riv'),
   });
 
-  const isChecking  = useStateMachineInput(rive, SM_NAME, INPUT.isChecking);
-  const numLook     = useStateMachineInput(rive, SM_NAME, INPUT.numLook);
-  const isHandsUp   = useStateMachineInput(rive, SM_NAME, INPUT.isHandsUp);
-  const trigSuccess = useStateMachineInput(rive, SM_NAME, INPUT.trigSuccess);
-  const trigFail    = useStateMachineInput(rive, SM_NAME, INPUT.trigFail);
+  const typeInput = useStateMachineInput(rive, SM_NAME, INPUT.type);
 
-  // Mood → Rive expression
+  // Mood + speaking → type blend value
   useEffect(() => {
-    if (!rive) return;
+    if (!rive || !typeInput) return;
     try {
-      if (trigSuccess) trigSuccess.value = false;
-      if (trigFail)    trigFail.value    = false;
-      if (isHandsUp)   isHandsUp.value   = false;
-      if (isChecking)  isChecking.value  = speaking;
-      if (numLook)     numLook.value     = 50;
-
-      if (mood === 'happy' || mood === 'magical') {
-        if (trigSuccess) trigSuccess.value = true;
-      } else if (mood === 'tense') {
-        if (trigFail)    trigFail.value    = true;
-      } else if (mood === 'exciting') {
-        if (isChecking)  isChecking.value  = true;
-      }
+      typeInput.value = speaking ? SPEAKING_TYPE : MOOD_TYPE[mood];
     } catch { /* rive not ready */ }
-  }, [mood, speaking, rive, isChecking, numLook, isHandsUp, trigSuccess, trigFail]);
+  }, [mood, speaking, rive, typeInput]);
 
-  // Periodic gaze when idle — bear glances left/right, feels alive
+  // Subtle idle variation — small oscillation so Nani feels alive when quiet
   useEffect(() => {
     if (!rive || speaking) return;
-    const GAZE = [20, 30, 50, 70, 80];
+    const base = MOOD_TYPE[mood];
+    const DRIFT = [-8, -4, 0, 4, 8];
     const interval = setInterval(() => {
       try {
-        if (!numLook) return;
-        numLook.value = GAZE[Math.floor(Math.random() * GAZE.length)];
-        setTimeout(() => { try { if (numLook) numLook.value = 50; } catch { /* stale */ } }, 1400);
+        if (!typeInput) return;
+        const offset = DRIFT[Math.floor(Math.random() * DRIFT.length)];
+        typeInput.value = Math.max(0, Math.min(100, base + offset));
+        setTimeout(() => { try { if (typeInput) typeInput.value = base; } catch { /* stale */ } }, 1200);
       } catch { /* rive state changed between ticks */ }
     }, 3500);
     return () => clearInterval(interval);
-  }, [rive, speaking, numLook]);
+  }, [rive, speaking, mood, typeInput]);
 
   const aura         = MOOD_AURA[mood];
   const filter       = MOOD_FILTER[mood];

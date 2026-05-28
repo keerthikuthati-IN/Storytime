@@ -72,17 +72,17 @@ export const NARRATORS: Narrator[] = [
   },
 ];
 
-// Bruno — the single default narrator (warm bear via Rive, Sarvam shubh voice in English)
+// Nani — the single default narrator (warm Indian grandmother, Rive bear, Sarvam female voice)
 export const NANA_LUNA: Narrator = {
   id: 'nana-luna',
-  name: 'Bruno',
-  tone: 'Warm & Magical',
-  voiceGender: 'male',
-  ttsRate: 0.82,
+  name: 'Nani',
+  tone: 'Warm & Nurturing',
+  voiceGender: 'female',
+  ttsRate: 0.78,
   ttsPitch: 0.95,
-  personality: 'Speaks like a warm, gentle storytelling bear; calm, friendly, never hurried',
-  sampleQuote: '"Come, little one, let Bruno tell you the most wonderful story... close your eyes and listen..."',
-  emoji: '🐻',
+  personality: 'Speaks like a loving Indian grandmother; gentle, unhurried, warm with terms of endearment like "kanna" and "bangaram"',
+  sampleQuote: '"Come, sit close to Nani, kanna… let me tell you the most wonderful story… close your little eyes and listen…"',
+  emoji: '🧓',
   bgColor: '#FFF8F0',
   accentColor: '#F4A261',
   elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM', // fallback if ElevenLabs ever added

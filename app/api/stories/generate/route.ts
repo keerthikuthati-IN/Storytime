@@ -4,18 +4,27 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   try {
-    const { title, category, mood, childName, narratorName, narratorDescription } = await req.json();
+    const { title, category, mood, childName, narratorName, narratorDescription, ageGroup = 'toddler' } = await req.json();
+
+    const AGE_INSTRUCTIONS: Record<string, string> = {
+      'newborn':       '', // newborns don't get stories
+      'toddler':       'Use very simple words (1-2 syllables where possible). Write 4-5 short paragraphs. Use gentle repetition and rhythm. Rich sensory details (soft, warm, cozy, sleepy). End with the child drifting peacefully to sleep.',
+      'early-learner': 'Use richer vocabulary with vivid imagery. Write 6-8 paragraphs. Include a simple narrative arc: a gentle challenge and a comforting resolution. You may include 1-2 Telugu words naturally with context (e.g., "the chandamama smiled down"). End with wonder and warmth, not excitement.',
+    };
+    const ageInstruction = AGE_INSTRUCTIONS[ageGroup] ?? AGE_INSTRUCTIONS['toddler'];
 
     const userPrompt = `Tell the classic bedtime story "${title}" in the style of ${narratorName}, who is ${narratorDescription}.
 The child's name is ${childName} — weave them in naturally as a small observer or friend of the main character if it fits.
 The story category is ${category} and overall mood is ${mood}.
 
-Stay true to the beloved original story that parents and children know and love. Use the classic characters, key plot moments, and satisfying ending. Adapt the language to be simple and warm for ages 0–5 — short sentences, vivid sensory details, gentle rhythm. Each paragraph should feel like one scene read aloud by a grandparent.
+${ageInstruction}
+
+Stay true to the beloved original story that parents and children know and love. Use the classic characters, key plot moments, and satisfying ending. Each paragraph should feel like one scene read aloud softly by a loving Indian grandmother.
 
 Return JSON in this exact shape:
 {
   "title": "Story Title",
-  "narrator_intro": "One warm, inviting sentence the narrator says before the story begins, in their unique voice.",
+  "narrator_intro": "One warm, inviting sentence Nani says before the story begins — gentle, grandmother-like, using 'kanna' or 'bangaram' naturally.",
   "paragraphs": [
     {
       "text": "3-4 short, simple sentences of story content. Rich sensory language. Easy words.",
@@ -29,12 +38,12 @@ Return JSON in this exact shape:
     }
   ]
 }
-Write 7 paragraphs. End with a gentle, comforting conclusion that helps a child drift off to sleep. For the emotion field: use 'sleepy' for the last paragraph, 'happy' for joyful moments, 'wonder' for magical/surprising scenes, 'excited' for action, 'concerned' for tense moments (gentle concern, never frightened), 'idle' for calm narration.`;
+End with a gentle, comforting conclusion that helps a child drift off to sleep. For the emotion field: use 'sleepy' for the last paragraph, 'happy' for joyful moments, 'wonder' for magical/surprising scenes, 'excited' for action, 'concerned' for tense moments (gentle concern, never frightened), 'idle' for calm narration.`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      system: 'You are a master children\'s storyteller for ages 0-5 from Indian families. You know both Western fairy tales and Indian classics - Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, Chandamama folk tales. Stories must use simple vocabulary, short sentences, and rich sensory language. Preserve the cultural flavour of Indian stories (names, settings, values). For each paragraph emotion field, describe how Nana Luna - a warm magical grandmother bear - feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.',
+      system: 'You are a master children\'s storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, Chandamama folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. Preserve the cultural flavour of Indian stories (names, settings, values). For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.',
       messages: [{ role: 'user', content: userPrompt }],
     });
 

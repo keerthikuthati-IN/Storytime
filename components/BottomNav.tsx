@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { BookHeart, Sparkles, Music2, UserCircle } from 'lucide-react';
+import { BookOpen, Moon, Heart, UserCircle } from 'lucide-react';
 
 const TABS = [
-  { href: '/my-stories',   Icon: BookHeart,  label: 'My Stories' },
-  { href: '/discover',     Icon: Sparkles,   label: 'Discover'   },
-  { href: '/songs',        Icon: Music2,     label: 'Lullabies'  },
-  { href: '/profile/view', Icon: UserCircle, label: 'Profile'    },
+  { href: '/discover',     Icon: BookOpen,   label: 'Stories'   },
+  { href: '/sleep',        Icon: Moon,       label: 'Sleep'     },
+  { href: '/memories',     Icon: Heart,      label: 'Memories'  },
+  { href: '/profile/view', Icon: UserCircle, label: 'Profile'   },
 ];
 
 export default function BottomNav() {
@@ -21,7 +21,8 @@ export default function BottomNav() {
         const isActive =
           pathname === href ||
           pathname.startsWith(href + '/') ||
-          (href === '/discover' && pathname === '/');
+          (href === '/discover' && (pathname === '/' || pathname.startsWith('/my-stories') || pathname.startsWith('/play'))) ||
+          (href === '/sleep' && pathname.startsWith('/songs'));
 
         return (
           <Link key={href} href={href} className="flex-1 flex flex-col items-center pt-3 pb-5 gap-0.5 relative">

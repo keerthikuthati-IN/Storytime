@@ -1,3 +1,11 @@
+export type AgeGroup = 'newborn' | 'toddler' | 'early-learner';
+
+export function getAgeGroup(age: number): AgeGroup {
+  if (age <= 1) return 'newborn';
+  if (age <= 3) return 'toddler';
+  return 'early-learner';
+}
+
 export interface ChildProfile {
   name: string;
   age: number;

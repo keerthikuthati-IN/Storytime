@@ -6,8 +6,8 @@ import { NextResponse } from 'next/server';
 
 // Speaker voices per language (bulbul:v3)
 const SPEAKERS: Record<string, string> = {
-  'en-IN': 'shubh', // conversational, friendly male
-  'te-IN': 'neha',  // Telugu, expressive and emotional
+  'en-IN': 'ishita', // warm, gentle female — recommended en-IN voice (bulbul:v3)
+  'te-IN': 'neha',   // Telugu, expressive and emotional female
 };
 
 const LANG_CODE: Record<string, string> = {

@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import NanaLunaAvatar from './NanaLunaAvatar';
-import { NANA_LUNA } from '@/lib/narrators';
+import CinematicRenderer from './CinematicRenderer';
 import type { GeneratedLullaby, GeneratedVerse } from '@/app/api/songs/generate/route';
 
 interface LullabyPlayerProps {
@@ -13,37 +12,6 @@ interface LullabyPlayerProps {
   onNext: () => void;  // play next song
 }
 
-const LULLABY_BG = 'linear-gradient(160deg, #F3E8FF 0%, #EDE8F8 50%, #E8EAF6 100%)';
-const LULLABY_PARTICLES = ['🌙', '⭐', '✨', '💫', '🌸'];
-
-function FloatingParticles() {
-  const [drifters] = useState(() =>
-    Array.from({ length: 8 }, (_, i) => ({
-      id: i,
-      emoji: LULLABY_PARTICLES[i % LULLABY_PARTICLES.length],
-      x: 5 + (i * 22) % 86,
-      delay: i * 0.7,
-      dur: 10 + (i * 1.4) % 6,
-      size: 12 + (i * 5) % 14,
-    }))
-  );
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {drifters.map(d => (
-        <motion.div
-          key={d.id}
-          className="absolute select-none"
-          style={{ left: `${d.x}%`, fontSize: d.size, opacity: 0.15 }}
-          animate={{ y: ['-5vh', '-95vh'] }}
-          transition={{ duration: d.dur, repeat: Infinity, delay: d.delay, ease: 'linear' }}
-          initial={{ y: '100vh' }}
-        >
-          {d.emoji}
-        </motion.div>
-      ))}
-    </div>
-  );
-}
 
 function VerseDisplay({ verse }: { verse: GeneratedVerse | null }) {
   if (!verse) return null;
@@ -57,7 +25,7 @@ function VerseDisplay({ verse }: { verse: GeneratedVerse | null }) {
         transition={{ duration: 0.6 }}
         className="text-center px-8"
       >
-        <p className="font-baloo font-bold text-xl text-gray-800 leading-relaxed whitespace-pre-line">
+        <p className="font-baloo font-bold text-xl text-white/90 leading-relaxed whitespace-pre-line">
           {verse.text}
         </p>
       </motion.div>
@@ -192,33 +160,23 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
   }
 
   return (
-    <div className="relative flex flex-col h-screen overflow-hidden" style={{ background: LULLABY_BG }}>
+    <div className="relative flex flex-col h-screen overflow-hidden">
 
-      <FloatingParticles />
-
-      {/* Bear — fills top ~60% of screen */}
-      <div className="relative z-10 w-full flex flex-col items-center" style={{ height: '60vh' }}>
-        <NanaLunaAvatar
-          narrator={NANA_LUNA}
-          mood="magical"
-          speaking={singing && !paused}
-          size={480}
-        />
-        <div className="text-center -mt-10">
-          <p className="font-baloo font-bold text-lg text-gray-800">{NANA_LUNA.name}</p>
-          <p className="font-nunito text-xs text-gray-400 font-semibold">
-            {istelugu ? '🎵 Singing in Telugu' : '🎵 Singing'}
-          </p>
-        </div>
+      {/* Cinematic night scene — fills entire screen behind content */}
+      <div className="absolute inset-0 z-0">
+        <CinematicRenderer />
       </div>
+
+      {/* Spacer — same height as old avatar area so card + controls stay at bottom */}
+      <div className="relative z-10 w-full" style={{ height: '60vh' }} />
 
       {/* Top bar — overlaid on top of bear */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-10 pb-2">
         <button
           onClick={() => { cleanupSong(); onEnd(); }}
-          className="text-gray-500 font-nunito text-sm bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm"
+          className="text-white/70 font-nunito text-sm bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/15"
         >
-          ← Songs
+          ← Sleep
         </button>
 
         {/* Verse progress dots */}
@@ -238,10 +196,10 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
         </div>
       </div>
 
-      {/* Song title + verse in a frosted card */}
+      {/* Song title + verse in a frosted card — dark-mode palette over cinematic bg */}
       <div className="relative z-10 flex-1 flex flex-col justify-end px-5 pb-2">
-        <div className="bg-white/70 backdrop-blur-md rounded-3xl px-6 py-4 shadow-soft text-center">
-          <p className="font-baloo font-bold text-sm text-purple-400 mb-2">{lullaby.title}</p>
+        <div className="bg-white/10 backdrop-blur-md rounded-3xl px-6 py-4 border border-white/15 text-center">
+          <p className="font-baloo font-bold text-sm text-purple-200 mb-2">{lullaby.title}</p>
           <VerseDisplay verse={currentVerse} />
         </div>
       </div>
@@ -254,7 +212,7 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={repeat}
-            className="w-12 h-12 rounded-2xl bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl shadow-sm"
+            className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-xl"
           >
             🔁
           </motion.button>
@@ -263,7 +221,7 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={togglePause}
-            className="w-16 h-16 rounded-full bg-coral flex items-center justify-center text-2xl text-white shadow-glow"
+            className="w-16 h-16 rounded-full bg-coral/90 backdrop-blur-sm flex items-center justify-center text-2xl text-white shadow-glow"
           >
             {paused ? '▶' : '⏸'}
           </motion.button>
@@ -272,7 +230,7 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={handleNext}
-            className="w-12 h-12 rounded-2xl bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl shadow-sm"
+            className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-xl"
           >
             ⏭
           </motion.button>
@@ -281,8 +239,8 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={toggleMusic}
-            className={`w-12 h-12 rounded-2xl backdrop-blur-sm flex items-center justify-center text-xl transition-colors shadow-sm ${
-              musicOn ? 'bg-sky-100/60 text-sky-500' : 'bg-white/60 text-gray-400'
+            className={`w-12 h-12 rounded-2xl backdrop-blur-sm flex items-center justify-center text-xl transition-colors ${
+              musicOn ? 'bg-coral/30 text-coral/80' : 'bg-white/10 text-white/40'
             }`}
           >
             {musicOn ? '🔊' : '🔇'}

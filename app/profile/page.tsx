@@ -2,9 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveProfile, type ChildProfile } from '@/lib/storage';
+import { saveProfile, type ChildProfile, type AgeGroup } from '@/lib/storage';
 import { motion } from 'framer-motion';
 import { ArrowRight, Check } from 'lucide-react';
+
+const AGE_GROUPS: { group: AgeGroup; label: string; range: string; emoji: string; age: number }[] = [
+  { group: 'newborn',       label: 'Newborn',       range: '0–1 yrs', emoji: '🌙', age: 0 },
+  { group: 'toddler',       label: 'Toddler',       range: '1–3 yrs', emoji: '🐣', age: 2 },
+  { group: 'early-learner', label: 'Early Learner', range: '3–6 yrs', emoji: '⭐', age: 4 },
+];
 
 const CATEGORIES = [
   { label: 'Animals',     emoji: '🐾' },
@@ -28,7 +34,7 @@ const GENDERS = [
 export default function ProfilePage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [age, setAge] = useState<number>(3);
+  const [selectedGroup, setSelectedGroup] = useState<AgeGroup>('toddler');
   const [gender, setGender] = useState<'girl' | 'boy' | 'neutral'>('neutral');
   const [categories, setCategories] = useState<string[]>([]);
   const [errors, setErrors] = useState<{ name?: string; categories?: string }>({});
@@ -46,6 +52,7 @@ export default function ProfilePage() {
     if (categories.length === 0) newErrors.categories = 'Pick at least one category';
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
 
+    const age = AGE_GROUPS.find(g => g.group === selectedGroup)?.age ?? 2;
     saveProfile({ name: name.trim(), age, gender, favouriteCategories: categories });
     router.push('/discover');
   }
@@ -104,25 +111,27 @@ export default function ProfilePage() {
           {errors.name && <p className="text-coral text-sm mt-1.5 font-nunito font-bold">{errors.name}</p>}
         </div>
 
-        {/* Age */}
+        {/* Age group */}
         <div className="glass-card rounded-3xl p-5 shadow-soft">
           <label className="block font-nunito font-extrabold text-gray-700 mb-3 text-sm uppercase tracking-wide">
-            Age — <span className="text-coral font-black text-2xl">{age}</span>
+            Age Group
           </label>
           <div className="flex gap-2">
-            {[0, 1, 2, 3, 4, 5].map(a => (
+            {AGE_GROUPS.map(g => (
               <motion.button
-                key={a}
+                key={g.group}
                 type="button"
-                whileTap={{ scale: 0.88 }}
-                onClick={() => setAge(a)}
-                className={`flex-1 py-3 rounded-2xl font-baloo font-bold text-lg transition-all ${
-                  age === a
+                whileTap={{ scale: 0.92 }}
+                onClick={() => setSelectedGroup(g.group)}
+                className={`flex-1 py-4 rounded-2xl font-nunito font-bold flex flex-col items-center gap-1.5 transition-all ${
+                  selectedGroup === g.group
                     ? 'bg-coral text-white shadow-glow'
-                    : 'bg-white/80 text-gray-500'
+                    : 'bg-white/80 text-gray-600'
                 }`}
               >
-                {a}
+                <span className="text-2xl">{g.emoji}</span>
+                <span className="text-xs font-extrabold">{g.label}</span>
+                <span className="text-[10px] opacity-70">{g.range}</span>
               </motion.button>
             ))}
           </div>

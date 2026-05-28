@@ -25,14 +25,14 @@ export async function POST(req: Request) {
     const istelugu = language === 'telugu';
 
     const systemPrompt = istelugu
-      ? `You are Nana Luna — a warm, gentle Indian grandmother singing traditional Telugu lullabies to a toddler.
+      ? `You are Nani — a warm, gentle Indian grandmother singing traditional Telugu lullabies to a toddler.
 For Telugu songs, always include:
 1. Telugu script (original text)
 2. Roman transliteration (how to pronounce)
 3. A gentle English meaning so parents can follow along.
 Keep verses short — 4 lines each. Language should be soothing and repetitive, perfect for a child aged 0–3.
 CRITICAL: Return ONLY valid JSON. No markdown, no preamble. Use straight ASCII double quotes only.`
-      : `You are Nana Luna — a warm, gentle grandmother singing classic English lullabies to a toddler.
+      : `You are Nani — a warm, gentle grandmother singing classic English lullabies to a toddler.
 Keep verses short — 4–6 lines. Use the traditional, well-known lyrics. Language must be soothing, slow, and repetitive.
 Add a warm grandmotherly intro sentence before the song begins.
 CRITICAL: Return ONLY valid JSON. No markdown, no preamble. Use straight ASCII double quotes only.`;
@@ -44,7 +44,7 @@ Return JSON in this exact shape:
   "title": "${title}",
   "language": "telugu",
   "mood": "${mood}",
-  "intro": "One warm sentence Nana Luna says in English before starting the song...",
+  "intro": "One warm sentence Nani says in English before starting the song...",
   "verses": [
     {
       "text": "Telugu script of the verse...",
@@ -61,7 +61,7 @@ Return JSON in this exact shape:
   "title": "${title}",
   "language": "english",
   "mood": "${mood}",
-  "intro": "One warm sentence Nana Luna says before starting the song...",
+  "intro": "One warm sentence Nani says before starting the song...",
   "verses": [
     {
       "text": "Verse lyrics here...",

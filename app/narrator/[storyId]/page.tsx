@@ -7,8 +7,6 @@ interface PageProps {
   params: Promise<{ storyId: string }>;
 }
 
-// Narrator selection has been removed — Nana Luna is the single narrator.
-// This page now immediately redirects to the play page.
 export default function NarratorPage({ params }: PageProps) {
   const { storyId } = use(params);
   const router = useRouter();

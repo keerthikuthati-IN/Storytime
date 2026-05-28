@@ -34,12 +34,13 @@ export async function fetchStoryRecommendations(
   name: string,
   categories: string[],
   likedStories: string[],
-  dislikedStories: string[]
+  dislikedStories: string[],
+  ageGroup?: string
 ): Promise<StoryRecommendation[]> {
   const res = await fetch('/api/stories/recommend', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ age, gender, name, categories, likedStories, dislikedStories }),
+    body: JSON.stringify({ age, gender, name, categories, likedStories, dislikedStories, ageGroup }),
   });
   if (!res.ok) throw new Error('Failed to fetch recommendations');
   const data = await res.json();
@@ -53,12 +54,13 @@ export async function generateStory(
   childName: string,
   narratorId: string,
   narratorName: string,
-  narratorDescription: string
+  narratorDescription: string,
+  ageGroup?: string
 ): Promise<GeneratedStory> {
   const res = await fetch('/api/stories/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription }),
+    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup }),
   });
   if (!res.ok) throw new Error('Failed to generate story');
   const data = await res.json();

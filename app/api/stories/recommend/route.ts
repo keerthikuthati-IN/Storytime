@@ -4,9 +4,17 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   try {
-    const { age, gender, name, categories, likedStories, dislikedStories } = await req.json();
+    const { age, gender, name, categories, likedStories, dislikedStories, ageGroup = 'toddler' } = await req.json();
+
+    const AGE_GUIDANCE: Record<string, string> = {
+      'toddler':       'Choose stories with very simple plots, warm characters, and gentle sensory details. Titles should feel cozy and comforting — nothing too complex or scary. Short stories (2–3 min) preferred.',
+      'early-learner': 'Choose stories with richer narratives, clear cause-and-effect, and emotionally meaningful characters. Mix gentle adventure with wonder. Stories can be longer (3–5 min). Include some with subtle moral lessons.',
+    };
+    const ageGuidance = AGE_GUIDANCE[ageGroup] ?? AGE_GUIDANCE['toddler'];
 
     const userPrompt = `Recommend 10 well-known classic bedtime stories for a ${age}-year-old ${gender} child named ${name} who likes ${categories.join(', ')}.
+
+Age group guidance: ${ageGuidance}
 
 Mix stories from BOTH Western classics AND Indian/Telugu classics. Roughly half should be Indian stories that Indian families know and love.
 

@@ -8,7 +8,7 @@ import NanaLunaAvatar from '@/components/NanaLunaAvatar';
 import { generateStory, type GeneratedStory } from '@/lib/claude';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
-import { getProfile } from '@/lib/storage';
+import { getProfile, getAgeGroup } from '@/lib/storage';
 
 interface PageProps {
   params: Promise<{ storyId: string }>;
@@ -163,6 +163,7 @@ export default function PlayPage({ params }: PageProps) {
       setLoading(true);
       setError(null);
       try {
+        const ageGroup = profile ? getAgeGroup(profile.age) : 'toddler';
         const generated = await generateStory(
           title,
           category,
@@ -170,7 +171,8 @@ export default function PlayPage({ params }: PageProps) {
           profile?.name ?? 'the child',
           narratorId,
           narrator!.name,
-          narrator!.personality
+          narrator!.personality,
+          ageGroup
         );
         setStory(generated);
       } catch {
@@ -192,7 +194,7 @@ export default function PlayPage({ params }: PageProps) {
       >
         <LoadingParticles narratorId={narratorId} />
 
-        {/* Bruno — centered, background matches artboard so edges are invisible */}
+        {/* Nani — centered, background matches artboard so edges are invisible */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

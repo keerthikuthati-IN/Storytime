@@ -5,7 +5,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProfile, saveProfile, type ChildProfile } from '@/lib/storage';
+import { getProfile, saveProfile, getAgeGroup, type ChildProfile, type AgeGroup } from '@/lib/storage';
+
+const AGE_GROUPS: { group: AgeGroup; label: string; range: string; emoji: string; age: number }[] = [
+  { group: 'newborn',       label: 'Newborn',       range: '0–1 yrs', emoji: '🌙', age: 0 },
+  { group: 'toddler',       label: 'Toddler',       range: '1–3 yrs', emoji: '🐣', age: 2 },
+  { group: 'early-learner', label: 'Early Learner', range: '3–6 yrs', emoji: '⭐', age: 4 },
+];
 import { motion } from 'framer-motion';
 import BottomNav from '@/components/BottomNav';
 
@@ -31,7 +37,7 @@ const GENDERS = [
 export default function EditProfilePage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [age, setAge] = useState<number>(3);
+  const [selectedGroup, setSelectedGroup] = useState<AgeGroup>('toddler');
   const [gender, setGender] = useState<'girl' | 'boy' | 'neutral'>('neutral');
   const [categories, setCategories] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
@@ -40,7 +46,7 @@ export default function EditProfilePage() {
     const p = getProfile();
     if (p) {
       setName(p.name);
-      setAge(p.age);
+      setSelectedGroup(getAgeGroup(p.age));
       setGender(p.gender);
       setCategories(p.favouriteCategories);
     }
@@ -55,6 +61,7 @@ export default function EditProfilePage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || categories.length === 0) return;
+    const age = AGE_GROUPS.find(g => g.group === selectedGroup)?.age ?? 2;
     const profile: ChildProfile = { name: name.trim(), age, gender, favouriteCategories: categories };
     saveProfile(profile);
     setSaved(true);
@@ -62,12 +69,12 @@ export default function EditProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#FFF8F0] to-[#FFE8D6] pb-28">
+    <div className="min-h-screen fun-bg pb-28">
       <div className="px-5 pt-10 pb-4">
         <button onClick={() => router.back()} className="text-gray-400 text-sm font-nunito mb-4 flex items-center gap-1">
           ← Back
         </button>
-        <h1 className="font-baloo font-bold text-2xl text-gray-800">Edit Profile 👤</h1>
+        <h1 className="font-baloo font-bold text-[26px] leading-tight text-gray-800">Edit Profile 👤</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="px-5 space-y-5">
@@ -82,14 +89,14 @@ export default function EditProfilePage() {
         </div>
 
         <div className="bg-white rounded-3xl p-5 shadow-soft">
-          <label className="block font-nunito font-bold text-gray-700 mb-3">
-            Age — <span className="text-coral font-extrabold text-xl">{age}</span>
-          </label>
+          <label className="block font-nunito font-bold text-gray-700 mb-3">Age Group</label>
           <div className="flex gap-2">
-            {[0, 1, 2, 3, 4, 5].map(a => (
-              <button key={a} type="button" onClick={() => setAge(a)}
-                className={`flex-1 py-3 rounded-2xl font-nunito font-bold text-lg transition-all ${age === a ? 'bg-coral text-white scale-105' : 'bg-gray-100 text-gray-500'}`}>
-                {a}
+            {AGE_GROUPS.map(g => (
+              <button key={g.group} type="button" onClick={() => setSelectedGroup(g.group)}
+                className={`flex-1 py-3 rounded-2xl font-nunito font-bold flex flex-col items-center gap-1 transition-all ${selectedGroup === g.group ? 'bg-coral text-white scale-105' : 'bg-gray-100 text-gray-600'}`}>
+                <span className="text-xl">{g.emoji}</span>
+                <span className="text-xs">{g.label}</span>
+                <span className="text-[10px] opacity-70">{g.range}</span>
               </button>
             ))}
           </div>
@@ -125,7 +132,7 @@ export default function EditProfilePage() {
         <motion.button
           type="submit"
           whileTap={{ scale: 0.97 }}
-          className={`w-full py-5 rounded-3xl font-baloo font-bold text-xl shadow-card transition-colors ${saved ? 'bg-mint text-white' : 'bg-coral text-white'}`}
+          className={`w-full py-4 rounded-3xl font-nunito font-bold text-base shadow-glow transition-colors ${saved ? 'bg-mint text-white' : 'bg-coral text-white'}`}
         >
           {saved ? '✓ Saved!' : 'Save Changes'}
         </motion.button>

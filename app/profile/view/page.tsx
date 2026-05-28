@@ -41,7 +41,7 @@ export default function ProfileViewPage() {
         >
           {genderEmoji}
         </motion.div>
-        <h1 className="font-baloo font-bold text-3xl">{profile.name}</h1>
+        <h1 className="font-baloo font-bold text-[26px] leading-tight">{profile.name}</h1>
         <p className="font-nunito opacity-80 mt-1">Age {profile.age} · {profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1)}</p>
       </div>
 
@@ -78,7 +78,7 @@ export default function ProfileViewPage() {
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={() => router.push('/profile/edit')}
-          className="w-full bg-coral text-white py-4 rounded-3xl font-baloo font-bold text-lg shadow-card"
+          className="w-full bg-coral text-white py-4 rounded-3xl font-nunito font-bold text-base shadow-glow"
         >
           ✏️ Edit Profile
         </motion.button>
