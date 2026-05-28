@@ -117,19 +117,14 @@ function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: () => void
 
 // ── Add Memory Modal ──────────────────────────────────────────────────────
 
-const MILESTONE_TYPES: MilestoneType[] = [
-  'bedtime_moment', 'first_word', 'first_step', 'first_laugh', 'first_day_school', 'custom',
-];
-
 function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [title, setTitle]             = useState('');
-  const [note, setNote]               = useState('');
-  const [milestone, setMilestone]     = useState<MilestoneType>('bedtime_moment');
-  const [date, setDate]               = useState(new Date().toISOString().slice(0, 10));
-  const [emoji, setEmoji]             = useState('🌙');
-  const [photo, setPhoto]             = useState<string | undefined>();
-  const [saving, setSaving]           = useState(false);
-  const fileRef                       = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState('');
+  const [note, setNote]   = useState('');
+  const [date, setDate]   = useState(new Date().toISOString().slice(0, 10));
+  const [emoji, setEmoji] = useState('🌙');
+  const [photo, setPhoto] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -141,7 +136,7 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   async function handleSave() {
     if (!title.trim()) return;
     setSaving(true);
-    await addMemory({ title: title.trim(), note: note.trim() || undefined, milestoneType: milestone, date, emoji, photoDataUrl: photo });
+    await addMemory({ title: title.trim(), note: note.trim() || undefined, milestoneType: 'custom', date, emoji, photoDataUrl: photo });
     setSaving(false);
     onSaved();
   }
@@ -153,12 +148,13 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <motion.div
-        className="relative bg-white w-full max-w-[430px] rounded-t-3xl flex flex-col max-h-[92vh]"
+        className="relative bg-white w-full max-w-[430px] rounded-t-3xl flex flex-col"
+        style={{ maxHeight: 'calc(100dvh - 80px)' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
-        {/* Header — close left, title centre, Save right */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-50 flex-shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-50 flex-shrink-0">
           <button onClick={onClose} className="text-gray-400 p-1"><X size={20} /></button>
           <h2 className="font-baloo font-bold text-xl text-gray-800">Add a Memory</h2>
           <motion.button
@@ -171,12 +167,12 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
           </motion.button>
         </div>
 
-        {/* Scrollable form body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 pb-8">
+        {/* Scrollable body */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-4 pb-6">
 
           {/* Emoji picker */}
           <div>
-            <p className="font-nunito font-bold text-xs text-gray-500 mb-2 uppercase tracking-wider">Pick an emoji</p>
+            <p className="font-nunito font-bold text-xs text-gray-400 mb-2 uppercase tracking-wider">Pick an emoji</p>
             <div className="flex flex-wrap gap-2">
               {MEMORY_EMOJI_PRESETS.map(e => (
                 <button key={e} onClick={() => setEmoji(e)}
@@ -189,7 +185,7 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
 
           {/* Title */}
           <div>
-            <label className="block font-nunito font-bold text-xs text-gray-500 mb-1.5 uppercase tracking-wider">Title *</label>
+            <label className="block font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Title *</label>
             <input
               type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={80}
               placeholder="e.g. First word: Amma!"
@@ -199,54 +195,44 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
 
           {/* Note */}
           <div>
-            <label className="block font-nunito font-bold text-xs text-gray-500 mb-1.5 uppercase tracking-wider">Note (optional)</label>
+            <label className="block font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Note (optional)</label>
             <textarea
-              value={note} onChange={e => setNote(e.target.value)} rows={3} maxLength={400}
+              value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={400}
               placeholder="Write a little story about this moment…"
               className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 font-nunito text-gray-700 text-sm focus:outline-none focus:border-coral/40 resize-none"
             />
           </div>
 
-          {/* Milestone type */}
-          <div>
-            <p className="font-nunito font-bold text-xs text-gray-500 mb-2 uppercase tracking-wider">Milestone</p>
-            <div className="flex flex-wrap gap-2">
-              {MILESTONE_TYPES.map(m => (
-                <button key={m} onClick={() => setMilestone(m)}
-                  className={`text-xs font-nunito font-bold px-3 py-1.5 rounded-full transition-all ${milestone === m ? 'bg-coral text-white shadow-glow' : 'bg-gray-100 text-gray-500'}`}>
-                  {MILESTONE_EMOJIS[m]} {MILESTONE_LABELS[m]}
+          {/* Date + Photo side by side */}
+          <div className="flex gap-3 items-start">
+            <div className="flex-1">
+              <label className="block font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Date</label>
+              <input
+                type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full border-2 border-gray-100 rounded-2xl px-3 py-3 font-nunito text-gray-800 text-sm focus:outline-none focus:border-coral/40"
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <p className="font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Photo</p>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+              {photo ? (
+                <div className="relative">
+                  <img src={photo} alt="" className="w-[72px] h-[46px] rounded-2xl object-cover" />
+                  <button onClick={() => setPhoto(undefined)} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow">✕</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="w-[72px] h-[46px] border-2 border-dashed border-coral/30 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-coral/50"
+                >
+                  <Camera size={14} />
+                  <span className="font-nunito font-bold text-[9px]">Add</span>
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
-          {/* Date */}
-          <div>
-            <label className="block font-nunito font-bold text-xs text-gray-500 mb-1.5 uppercase tracking-wider">Date</label>
-            <input
-              type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 font-nunito text-gray-800 text-sm focus:outline-none focus:border-coral/40"
-            />
-          </div>
-
-          {/* Photo upload */}
-          <div>
-            <p className="font-nunito font-bold text-xs text-gray-500 mb-2 uppercase tracking-wider">Photo (optional)</p>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-            {photo ? (
-              <div className="relative inline-block">
-                <img src={photo} alt="" className="w-24 h-24 rounded-2xl object-cover" />
-                <button onClick={() => setPhoto(undefined)} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow">✕</button>
-              </div>
-            ) : (
-              <button onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-2 border-2 border-dashed border-coral/25 rounded-2xl px-4 py-3 text-coral/60 font-nunito font-bold text-sm">
-                <Camera size={16} /> Add photo
-              </button>
-            )}
-          </div>
         </div>
-
       </motion.div>
     </motion.div>
   );
