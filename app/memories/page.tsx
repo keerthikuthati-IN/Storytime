@@ -72,7 +72,7 @@ function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: () => void
       <AnimatePresence>
         {expanded && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-end justify-center"
+            className="fixed inset-0 z-[80] flex items-end justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           >
             <div className="absolute inset-0 bg-black/40" onClick={() => setExpanded(false)} />
@@ -163,13 +163,13 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-[80] flex items-end justify-center"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <motion.div
         className="relative bg-white w-full max-w-[430px] rounded-t-3xl flex flex-col"
-        style={{ maxHeight: 'calc(100dvh - 80px)' }}
+        style={{ maxHeight: 'calc(100dvh - 16px)' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
