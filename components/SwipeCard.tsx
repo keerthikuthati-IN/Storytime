@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { motion, useMotionValue, useTransform, useAnimation } from 'framer-motion';
-import Image from 'next/image';
 import type { StoryRecommendation } from '@/lib/claude';
+import { getCategoryStyle } from '@/lib/storyCovers';
 
 interface SwipeCardProps {
   story: StoryRecommendation;
@@ -13,14 +13,6 @@ interface SwipeCardProps {
 }
 
 const SWIPE_THRESHOLD = 100;
-const COVER_SEED_MAP: Record<string, number> = {};
-
-function getCoverSeed(id: string): number {
-  if (!COVER_SEED_MAP[id]) {
-    COVER_SEED_MAP[id] = Math.floor(Math.random() * 1000);
-  }
-  return COVER_SEED_MAP[id];
-}
 
 export default function SwipeCard({ story, onLike, onDislike, isTop }: SwipeCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -32,9 +24,7 @@ export default function SwipeCard({ story, onLike, onDislike, isTop }: SwipeCard
   const nopeOpacity = useTransform(x, [-100, -20], [1, 0]);
   const cardScale = useTransform(x, [-200, 0, 200], [0.95, 1, 0.95]);
 
-  const seed = getCoverSeed(story.id);
-  // Picsum photos — replace with real AI-generated images in production
-  const coverImage = `https://picsum.photos/seed/${seed}/400/500`;
+  const cover = getCategoryStyle(story.category);
 
   async function handleDragEnd(_: unknown, info: { offset: { x: number } }) {
     if (!isTop) return;
@@ -81,29 +71,32 @@ export default function SwipeCard({ story, onLike, onDislike, isTop }: SwipeCard
         className="bg-white rounded-3xl overflow-hidden shadow-card"
         onClick={() => isTop && setExpanded(p => !p)}
       >
-        {/* Cover image */}
-        <div className="relative h-72 w-full" style={{ backgroundColor: story.coverColor }}>
-          <Image
-            src={coverImage}
-            alt={story.title}
-            fill
-            className="object-cover"
-            unoptimized
-          />
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        {/* Illustrated cover */}
+        <div
+          className="relative h-72 w-full flex items-center justify-center overflow-hidden"
+          style={{ background: `linear-gradient(135deg, ${cover.from} 0%, ${cover.to} 100%)` }}
+        >
+          {/* Decorative blobs */}
+          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-30" style={{ background: cover.to }} />
+          <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full opacity-20" style={{ background: cover.from }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full opacity-10" style={{ background: cover.to }} />
+
+          {/* Main emoji */}
+          <span className="text-[88px] leading-none select-none drop-shadow-sm relative z-10">
+            {cover.emoji}
+          </span>
 
           {/* Category pill */}
-          <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full font-nunito font-bold text-xs text-gray-700">
+          <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full font-nunito font-bold text-xs text-gray-600">
             {story.category}
           </div>
 
           {/* Duration & Age */}
           <div className="absolute top-4 right-4 flex gap-2">
-            <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full font-nunito text-xs text-gray-700 font-semibold">
+            <span className="bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full font-nunito text-xs text-gray-600 font-semibold">
               ⏱ {story.duration}
             </span>
-            <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full font-nunito text-xs text-gray-700 font-semibold">
+            <span className="bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full font-nunito text-xs text-gray-600 font-semibold">
               {story.ageRange}
             </span>
           </div>

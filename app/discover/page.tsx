@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trash2, Check } from 'lucide-react';
 import { getProfile, deleteSavedStory, getAgeGroup } from '@/lib/storage';
 import type { ChildProfile } from '@/lib/storage';
 import type { StoryRecommendation } from '@/lib/claude';
+import { getCategoryStyle } from '@/lib/storyCovers';
 import SwipeDeck from '@/components/SwipeDeck';
 import BottomNav from '@/components/BottomNav';
 
@@ -167,16 +167,14 @@ export default function DiscoverPage() {
                       }}
                       className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer"
                     >
-                      <div className="relative h-36 w-full" style={{ backgroundColor: story.coverColor }}>
-                        <Image
-                          src={`https://picsum.photos/seed/${story.id.charCodeAt(0) + story.id.length}/300/200`}
-                          alt={story.title}
-                          fill
-                          className="object-cover"
-                          unoptimized
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                        <span className="absolute bottom-2 left-2 bg-white/90 text-gray-700 text-[10px] font-nunito font-extrabold px-2 py-0.5 rounded-full">
+                      <div
+                        className="relative h-36 w-full flex items-center justify-center overflow-hidden"
+                        style={{ background: `linear-gradient(135deg, ${getCategoryStyle(story.category).from} 0%, ${getCategoryStyle(story.category).to} 100%)` }}
+                      >
+                        <span className="text-6xl leading-none select-none drop-shadow-sm relative z-10">
+                          {getCategoryStyle(story.category).emoji}
+                        </span>
+                        <span className="absolute bottom-2 left-2 bg-white/80 text-gray-600 text-[10px] font-nunito font-extrabold px-2 py-0.5 rounded-full">
                           {story.category}
                         </span>
                         <motion.button
