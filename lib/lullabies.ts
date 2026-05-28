@@ -97,7 +97,7 @@ export const LULLABIES: Lullaby[] = [
   // ── Telugu / లాలి పాటలు ──────────────────────────────────────
   {
     id: 'jo-achyutananda',
-    title: 'జో అచ్యుతానంద జో జో',
+    title: 'జో జో చిన్నారి',
     language: 'telugu',
     mood: 'sleepy',
     emoji: '🌸',
