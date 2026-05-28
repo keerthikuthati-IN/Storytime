@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Story Time',
-  description: 'AI-powered interactive storytelling for kids aged 0–5',
+  title: 'Kathabox',
+  description: 'Your child\'s Indian grandmother — stories, lullabies & memories in one cozy app',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };
 

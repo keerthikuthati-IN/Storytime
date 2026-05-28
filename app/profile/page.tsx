@@ -54,7 +54,7 @@ export default function ProfilePage() {
 
     const age = AGE_GROUPS.find(g => g.group === selectedGroup)?.age ?? 2;
     saveProfile({ name: name.trim(), age, gender, favouriteCategories: categories });
-    router.push('/discover');
+    router.push(selectedGroup === 'newborn' ? '/sleep' : '/discover');
   }
 
   return (
@@ -69,7 +69,7 @@ export default function ProfilePage() {
           transition={{ type: 'spring', stiffness: 220, damping: 14 }}
           className="text-7xl mb-4 inline-block"
         >
-          📚
+          🧓
         </motion.div>
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
@@ -77,7 +77,7 @@ export default function ProfilePage() {
           transition={{ delay: 0.18 }}
           className="font-baloo font-bold text-4xl gradient-text"
         >
-          Story Time
+          Kathabox
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 10 }}
@@ -85,7 +85,7 @@ export default function ProfilePage() {
           transition={{ delay: 0.3 }}
           className="text-gray-500 font-nunito font-semibold mt-1.5 text-base"
         >
-          Set up your little reader's profile!
+          Set up your little one's profile!
         </motion.p>
       </div>
 

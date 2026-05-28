@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProfile } from '@/lib/storage';
+import { getProfile, getAgeGroup } from '@/lib/storage';
 
 export default function Home() {
   const router = useRouter();
@@ -10,7 +10,8 @@ export default function Home() {
   useEffect(() => {
     const profile = getProfile();
     if (profile) {
-      router.replace('/discover');
+      const ageGroup = getAgeGroup(profile.age);
+      router.replace(ageGroup === 'newborn' ? '/sleep' : '/discover');
     } else {
       router.replace('/profile');
     }
@@ -19,8 +20,8 @@ export default function Home() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-cream">
       <div className="text-center">
-        <div className="text-6xl mb-4 animate-bounce_gentle">📚</div>
-        <p className="font-nunito text-coral font-bold text-lg">Loading Story Time...</p>
+        <div className="text-6xl mb-4 animate-bounce_gentle">🧓</div>
+        <p className="font-nunito text-coral font-bold text-lg">Loading Kathabox...</p>
       </div>
     </div>
   );

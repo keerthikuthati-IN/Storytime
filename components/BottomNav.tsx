@@ -3,17 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { BookOpen, Moon, Heart, UserCircle } from 'lucide-react';
+import { BookOpen, Music2, Heart, UserCircle } from 'lucide-react';
+import { getProfile, getAgeGroup } from '@/lib/storage';
 
-const TABS = [
-  { href: '/discover',     Icon: BookOpen,   label: 'Stories'   },
-  { href: '/sleep',        Icon: Moon,       label: 'Sleep'     },
-  { href: '/memories',     Icon: Heart,      label: 'Memories'  },
-  { href: '/profile/view', Icon: UserCircle, label: 'Profile'   },
+const ALL_TABS = [
+  { href: '/discover',     Icon: BookOpen,   label: 'Stories',  newbornHide: true  },
+  { href: '/sleep',        Icon: Music2,     label: 'Soothe',   newbornHide: false },
+  { href: '/memories',     Icon: Heart,      label: 'Memories', newbornHide: false },
+  { href: '/profile/view', Icon: UserCircle, label: 'Profile',  newbornHide: false },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
+
+  const profile = getProfile();
+  const isNewborn = profile ? getAgeGroup(profile.age) === 'newborn' : false;
+  const TABS = isNewborn ? ALL_TABS.filter(t => !t.newbornHide) : ALL_TABS;
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] frosted-nav flex z-50 shadow-nav rounded-t-3xl">

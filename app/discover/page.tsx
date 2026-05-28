@@ -35,6 +35,7 @@ export default function DiscoverPage() {
   useEffect(() => {
     const p = getProfile();
     if (!p) { router.replace('/profile'); return; }
+    if (getAgeGroup(p.age) === 'newborn') { router.replace('/sleep'); return; }
     setProfile(p);
     refreshSaved();
   }, [router, refreshSaved]);
