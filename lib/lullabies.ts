@@ -17,12 +17,12 @@ export const LULLABIES: Lullaby[] = [
   // ── English ──────────────────────────────────────────────────
   {
     id: 'twinkle-twinkle',
-    title: 'Twinkle Twinkle Little Star',
+    title: 'Little Stars Are Shining Bright',
     language: 'english',
     mood: 'calm',
     emoji: '⭐',
     durationEstimate: '2–3 min',
-    intro: 'Let Nani sing you a little song about the stars that twinkle just for you...',
+    intro: 'Let Nani sing you a little song about the stars that shine just for you...',
     verses: [
       'Little stars are shining bright\nFloating softly through the night\nMoon is singing from above\nWrapping dreams in sleepy love',
       'Twinkle softly, little light\nGuide us gently through the night\nClose your eyes and drift away\nDreams will dance till break of day',
@@ -30,7 +30,7 @@ export const LULLABIES: Lullaby[] = [
   },
   {
     id: 'brahms-lullaby',
-    title: "Brahms' Lullaby",
+    title: 'Moonlight Lullaby',
     language: 'english',
     mood: 'sleepy',
     emoji: '🌙',
@@ -43,7 +43,7 @@ export const LULLABIES: Lullaby[] = [
   },
   {
     id: 'rock-a-bye-baby',
-    title: 'Rock-a-Bye Baby',
+    title: 'Rocking in the Breeze',
     language: 'english',
     mood: 'calm',
     emoji: '🌿',
@@ -56,7 +56,7 @@ export const LULLABIES: Lullaby[] = [
   },
   {
     id: 'hush-little-baby',
-    title: 'Hush Little Baby',
+    title: 'Hush Now Little One',
     language: 'english',
     mood: 'calm',
     emoji: '🤫',
@@ -69,7 +69,7 @@ export const LULLABIES: Lullaby[] = [
   },
   {
     id: 'you-are-my-sunshine',
-    title: 'You Are My Sunshine',
+    title: 'You Are My Shining Light',
     language: 'english',
     mood: 'happy',
     emoji: '☀️',
@@ -82,7 +82,7 @@ export const LULLABIES: Lullaby[] = [
   },
   {
     id: 'baa-baa-black-sheep',
-    title: 'Baa Baa Black Sheep',
+    title: 'Little Sheep Going to Sleep',
     language: 'english',
     mood: 'happy',
     emoji: '🐑',
