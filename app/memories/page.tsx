@@ -7,9 +7,29 @@ import BottomNav from '@/components/BottomNav';
 import { getProfile } from '@/lib/storage';
 import {
   getAllMemories, addMemory, deleteMemory, compressImage,
-  MILESTONE_LABELS, MILESTONE_EMOJIS, MEMORY_EMOJI_PRESETS,
-  type Memory, type MilestoneType,
+  MEMORY_EMOJI_PRESETS,
+  type Memory,
 } from '@/lib/memories';
+
+const CARD_GRADIENTS = [
+  ['#FFF3C4', '#FFE0A0'],
+  ['#FFE0EC', '#FFC8DA'],
+  ['#E8F0FF', '#C8D8FF'],
+  ['#E8FFF0', '#C0ECC8'],
+  ['#FFE8D0', '#FFCCA8'],
+  ['#F0E8FF', '#DCC8FF'],
+  ['#FFF0E0', '#FFD8B0'],
+  ['#E0F8FF', '#B8ECFF'],
+  ['#FFF8E0', '#FFE8A0'],
+  ['#F8E8FF', '#ECC8FF'],
+  ['#E8FFF8', '#B8F0E0'],
+  ['#FFE8E8', '#FFC8C8'],
+];
+
+function cardGradient(emoji: string): [string, string] {
+  const idx = MEMORY_EMOJI_PRESETS.indexOf(emoji);
+  return (CARD_GRADIENTS[idx >= 0 ? idx : 0] ?? CARD_GRADIENTS[0]) as [string, string];
+}
 
 // ── Memory Card ──────────────────────────────────────────────────────────
 
@@ -18,43 +38,37 @@ function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: () => void
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const date = new Date(memory.date).toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric',
+    day: 'numeric', month: 'short', year: 'numeric',
   });
+  const [from, to] = cardGradient(memory.emoji);
 
   return (
     <>
       <motion.div
         layout
-        whileTap={{ scale: 0.98 }}
+        whileTap={{ scale: 0.97 }}
         onClick={() => setExpanded(true)}
-        className="bg-white rounded-3xl p-4 shadow-soft cursor-pointer border border-amber-50 relative overflow-hidden"
+        className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer"
       >
-        {/* Parchment texture overlay */}
-        <div className="absolute inset-0 opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiNmZmYiLz48cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSIjOTk5Ii8+PC9zdmc+')] pointer-events-none rounded-3xl" />
+        {/* Visual — photo or large emoji on gradient */}
+        <div
+          className="w-full h-36 flex items-center justify-center overflow-hidden"
+          style={memory.photoDataUrl ? undefined : { background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)` }}
+        >
+          {memory.photoDataUrl
+            ? <img src={memory.photoDataUrl} alt="" className="w-full h-full object-cover" />
+            : <span className="text-7xl select-none drop-shadow-sm">{memory.emoji}</span>
+          }
+        </div>
 
-        <div className="flex items-start gap-3 relative">
-          {/* Photo thumbnail or emoji */}
-          <div className="w-14 h-14 rounded-2xl flex-shrink-0 overflow-hidden bg-amber-50 flex items-center justify-center">
-            {memory.photoDataUrl
-              ? <img src={memory.photoDataUrl} alt="" className="w-full h-full object-cover" />
-              : <span className="text-3xl">{memory.emoji}</span>
-            }
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <p className="font-baloo font-bold text-sm text-gray-800 leading-tight">{memory.title}</p>
-            <p className="font-nunito text-[10px] text-amber-600 font-bold mt-0.5">{date}</p>
-            <span className="inline-block mt-1 text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500">
-              {MILESTONE_EMOJIS[memory.milestoneType]} {MILESTONE_LABELS[memory.milestoneType]}
-            </span>
-            {memory.note && (
-              <p className="font-nunito text-xs text-gray-400 mt-1 line-clamp-2 leading-snug">{memory.note}</p>
-            )}
-          </div>
+        {/* Info */}
+        <div className="px-3 py-3">
+          <p className="font-baloo font-bold text-sm text-gray-800 leading-snug line-clamp-2">{memory.title}</p>
+          <p className="font-nunito text-[11px] text-amber-500 font-semibold mt-0.5">{date}</p>
         </div>
       </motion.div>
 
-      {/* Expanded overlay */}
+      {/* Expanded detail sheet */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -63,49 +77,55 @@ function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: () => void
           >
             <div className="absolute inset-0 bg-black/40" onClick={() => setExpanded(false)} />
             <motion.div
-              className="relative bg-white w-full max-w-[430px] rounded-t-3xl px-6 pt-6 pb-10 max-h-[85vh] overflow-y-auto"
+              className="relative bg-white w-full max-w-[430px] rounded-t-3xl overflow-hidden max-h-[85vh] flex flex-col"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="font-nunito text-[10px] text-amber-500 font-bold uppercase tracking-wider">{date}</p>
-                  <h2 className="font-baloo font-bold text-xl text-gray-800 mt-0.5">{memory.title}</h2>
-                  <span className="inline-block mt-1 text-[10px] font-nunito font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-500">
-                    {MILESTONE_EMOJIS[memory.milestoneType]} {MILESTONE_LABELS[memory.milestoneType]}
-                  </span>
-                </div>
-                <button onClick={() => setExpanded(false)} className="text-gray-400 p-1">
-                  <X size={20} />
-                </button>
+              {/* Hero image or emoji */}
+              <div
+                className="w-full h-52 flex-shrink-0 flex items-center justify-center overflow-hidden"
+                style={memory.photoDataUrl ? undefined : { background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)` }}
+              >
+                {memory.photoDataUrl
+                  ? <img src={memory.photoDataUrl} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-[96px] select-none drop-shadow-sm">{memory.emoji}</span>
+                }
               </div>
 
-              {memory.photoDataUrl && (
-                <img src={memory.photoDataUrl} alt="" className="w-full rounded-2xl object-cover mb-4 max-h-64" />
-              )}
-
-              {memory.note && (
-                <p className="font-nunito text-gray-600 text-sm leading-relaxed">{memory.note}</p>
-              )}
-
-              <div className="mt-6 pt-4 border-t border-gray-100">
-                {confirmDelete ? (
-                  <div className="flex gap-2">
-                    <button onClick={() => { onDelete(); setExpanded(false); }}
-                      className="flex-1 py-3 rounded-2xl bg-red-50 text-red-500 font-nunito font-bold text-sm">
-                      Yes, delete
-                    </button>
-                    <button onClick={() => setConfirmDelete(false)}
-                      className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-500 font-nunito font-bold text-sm">
-                      Keep it
-                    </button>
+              <div className="flex-1 overflow-y-auto px-6 pt-5 pb-10">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="font-nunito text-[11px] text-amber-500 font-bold uppercase tracking-wider">{date}</p>
+                    <h2 className="font-baloo font-bold text-xl text-gray-800 mt-0.5">{memory.title}</h2>
                   </div>
-                ) : (
-                  <button onClick={() => setConfirmDelete(true)}
-                    className="w-full py-3 rounded-2xl bg-gray-50 text-gray-400 font-nunito font-bold text-sm">
-                    Delete memory
+                  <button onClick={() => setExpanded(false)} className="text-gray-400 p-1 -mt-1">
+                    <X size={20} />
                   </button>
+                </div>
+
+                {memory.note && (
+                  <p className="font-nunito text-gray-500 text-sm leading-relaxed">{memory.note}</p>
                 )}
+
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  {confirmDelete ? (
+                    <div className="flex gap-2">
+                      <button onClick={() => { onDelete(); setExpanded(false); }}
+                        className="flex-1 py-3 rounded-2xl bg-red-50 text-red-500 font-nunito font-bold text-sm">
+                        Yes, delete
+                      </button>
+                      <button onClick={() => setConfirmDelete(false)}
+                        className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-500 font-nunito font-bold text-sm">
+                        Keep it
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDelete(true)}
+                      className="w-full py-3 rounded-2xl bg-gray-50 text-gray-400 font-nunito font-bold text-sm">
+                      Delete memory
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -121,7 +141,6 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   const [title, setTitle] = useState('');
   const [note, setNote]   = useState('');
   const [date, setDate]   = useState(new Date().toISOString().slice(0, 10));
-  const [emoji, setEmoji] = useState('🌙');
   const [photo, setPhoto] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -136,7 +155,8 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   async function handleSave() {
     if (!title.trim()) return;
     setSaving(true);
-    await addMemory({ title: title.trim(), note: note.trim() || undefined, milestoneType: 'custom', date, emoji, photoDataUrl: photo });
+    const autoEmoji = MEMORY_EMOJI_PRESETS[Math.floor(Math.random() * MEMORY_EMOJI_PRESETS.length)];
+    await addMemory({ title: title.trim(), note: note.trim() || undefined, milestoneType: 'custom', date, emoji: autoEmoji, photoDataUrl: photo });
     setSaving(false);
     onSaved();
   }
@@ -169,19 +189,6 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
 
         {/* Scrollable body */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-4 pb-6">
-
-          {/* Emoji picker */}
-          <div>
-            <p className="font-nunito font-bold text-xs text-gray-400 mb-2 uppercase tracking-wider">Pick an emoji</p>
-            <div className="flex flex-wrap gap-2">
-              {MEMORY_EMOJI_PRESETS.map(e => (
-                <button key={e} onClick={() => setEmoji(e)}
-                  className={`w-10 h-10 rounded-2xl text-xl flex items-center justify-center transition-all ${emoji === e ? 'bg-coral/10 scale-110 shadow-sm' : 'bg-gray-50'}`}>
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Title */}
           <div>
@@ -330,7 +337,7 @@ export default function MemoriesPage() {
               <p className="font-nunito font-bold text-xs text-amber-500 uppercase tracking-widest mb-3 px-1">
                 {group.label}
               </p>
-              <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
                 {group.items.map((m, i) => (
                   <motion.div
                     key={m.id}
