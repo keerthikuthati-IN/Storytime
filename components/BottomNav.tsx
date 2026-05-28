@@ -8,7 +8,7 @@ import { getProfile, getAgeGroup } from '@/lib/storage';
 
 const ALL_TABS = [
   { href: '/discover',     Icon: BookOpen,   label: 'Stories',  newbornHide: true  },
-  { href: '/sleep',        Icon: Music2,     label: 'Soothe',   newbornHide: false },
+  { href: '/sleep',        Icon: Music2,     label: 'Whispers', newbornHide: false },
   { href: '/memories',     Icon: Heart,      label: 'Memories', newbornHide: false },
   { href: '/profile/view', Icon: UserCircle, label: 'Profile',  newbornHide: false },
 ];
