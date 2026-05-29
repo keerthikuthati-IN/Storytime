@@ -88,27 +88,6 @@ export default function SwipeDeck({ profile, onLiked }: SwipeDeckProps) {
     setDeck(prev => prev.slice(0, -1));
   }
 
-  // Newborns don't benefit from stories — guide parents to Sleep tab
-  if (ageGroup === 'newborn') {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-center px-6">
-        <motion.div
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-          className="text-6xl mb-4"
-        >
-          🌙
-        </motion.div>
-        <p className="font-baloo font-bold text-xl text-gray-700 mb-2">
-          Nani is waiting in Sleep
-        </p>
-        <p className="font-nunito text-gray-400 text-sm leading-relaxed max-w-[260px]">
-          Little newborns love white noise and soft lullabies more than stories right now.
-          Tap <span className="font-bold text-indigo-400">Sleep</span> below to begin.
-        </p>
-      </div>
-    );
-  }
 
   if (error) {
     return (
