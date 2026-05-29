@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const AGE_INSTRUCTIONS: Record<string, string> = {
       'newborn':       'Write only 3 very short paragraphs (2 soft sentences each). Use only simple sensory words — warm, soft, gentle, cozy, quiet. Focus entirely on warmth and magical peacefulness, no plot or conflict. Use gentle repetition ("soft and warm, warm and soft"). The mood must be purely loving and magical. End with the world going still and the baby drifting to sleep.',
       'toddler':       'Use very simple words (1-2 syllables where possible). Write 4-5 short paragraphs. Use gentle repetition and rhythm. Rich sensory details (soft, warm, cozy, sleepy). End with the child drifting peacefully to sleep.',
-      'early-learner': 'Use richer vocabulary with vivid imagery. Write 6-8 paragraphs. Include a simple narrative arc: a gentle challenge and a comforting resolution. You may include 1-2 Telugu words naturally with context (e.g., "the chandamama smiled down"). End with wonder and warmth, not excitement.',
+      'early-learner': 'Use richer vocabulary with vivid imagery. Write 6-8 paragraphs. Include a simple narrative arc: a gentle challenge and a comforting resolution. End with wonder and warmth, not excitement.',
     };
 
     const genderHint = gender === 'girl' ? 'The child is a girl — use she/her pronouns if the child appears in the story.' : gender === 'boy' ? 'The child is a boy — use he/him pronouns if the child appears in the story.' : '';
@@ -48,7 +48,7 @@ End with a gentle, comforting conclusion that helps a child drift off to sleep. 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      system: 'You are a master children\'s storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, Chandamama folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. Preserve the cultural flavour of Indian stories (names, settings, values). For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.',
+      system: 'You are a master children\'s storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. When addressing the child, use warm universal terms like "little one", "my dear", or "sweetheart" — never regional dialect words. For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.',
       messages: [{ role: 'user', content: userPrompt }],
     });
 
