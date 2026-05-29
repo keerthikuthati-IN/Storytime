@@ -139,7 +139,7 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
     const { Howl } = await import('howler');
     if (howlRef.current) {
       if (currentMoodRef.current === mood) return;
-      howlRef.current.fade(MUSIC_VOLUME, 0, 600);
+      howlRef.current.fade(howlRef.current.volume(), 0, 600); // fade from actual vol, not hardcoded
       setTimeout(() => howlRef.current?.unload(), 700);
     }
     currentMoodRef.current = mood;
@@ -170,15 +170,15 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   }, [speaking]);
 
   // Duck music while TTS is speaking.
-  // IMPORTANT: early-return when paused — pause handler owns the fade-to-0,
-  // this effect must not fight it by restoring volume.
+  // Use pausedRef.current (sync ref) not paused state — the ref is set before
+  // stop() is called so by the time this effect fires, the guard is already true.
   useEffect(() => {
     const howl = howlRef.current;
-    if (!howl || !musicOn || paused) return;
+    if (!howl || !musicOn || pausedRef.current) return;
     if (speaking) {
-      howl.fade(howl.volume(), MUSIC_DUCK, 300);   // quick duck when voice starts
+      howl.fade(howl.volume(), MUSIC_DUCK, 300);
     } else {
-      howl.fade(howl.volume(), MUSIC_VOLUME, 900); // slow restore between sentences
+      howl.fade(howl.volume(), MUSIC_VOLUME, 900);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speaking, paused]);
@@ -260,6 +260,7 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   }
 
   function handleExit() {
+    pausedRef.current = true; // block ducking effect before stop() triggers setSpeaking(false)
     stop();
     stopMusic();
     onEnd();

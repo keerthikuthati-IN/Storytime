@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trash2, Check } from 'lucide-react';
-import { getProfile, deleteSavedStory, getAgeGroup } from '@/lib/storage';
+import { getProfile, deleteSavedStory, getAgeGroup } from '@/lib/storage'; // getAgeGroup used below for SwipeDeck
 import type { ChildProfile } from '@/lib/storage';
 import type { StoryRecommendation } from '@/lib/claude';
 import { getCategoryStyle } from '@/lib/storyCovers';
@@ -35,7 +35,6 @@ export default function DiscoverPage() {
   useEffect(() => {
     const p = getProfile();
     if (!p) { router.replace('/profile'); return; }
-    if (getAgeGroup(p.age) === 'newborn') { router.replace('/sleep'); return; }
     setProfile(p);
     refreshSaved();
   }, [router, refreshSaved]);
@@ -47,7 +46,6 @@ export default function DiscoverPage() {
   if (!profile) return null;
 
   const ageGroup = getAgeGroup(profile.age);
-  const isNewborn = ageGroup === 'newborn';
 
   function handleDelete(e: React.MouseEvent, storyId: string) {
     e.stopPropagation();
@@ -73,35 +71,33 @@ export default function DiscoverPage() {
         </h1>
       </div>
 
-      {/* Tab bar — hidden for newborns since Discover has no stories for them */}
-      {!isNewborn && (
-        <div className="px-5 mb-4">
-          <div className="flex gap-1.5 bg-white/70 backdrop-blur-sm rounded-2xl p-1.5 shadow-soft">
-            {(['discover', 'saved'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2.5 rounded-xl font-nunito font-bold text-sm transition-all duration-200 relative ${
-                  tab === t ? 'bg-coral text-white shadow-glow' : 'text-gray-400'
-                }`}
-              >
-                {t === 'discover' ? '✨ Discover' : '❤️ Saved'}
-                {t === 'saved' && savedCount > 0 && (
-                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-extrabold ${
-                    tab === 'saved' ? 'bg-white/25 text-white' : 'bg-coral/15 text-coral'
-                  }`}>
-                    {savedCount}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+      {/* Tab bar */}
+      <div className="px-5 mb-4">
+        <div className="flex gap-1.5 bg-white/70 backdrop-blur-sm rounded-2xl p-1.5 shadow-soft">
+          {(['discover', 'saved'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 py-2.5 rounded-xl font-nunito font-bold text-sm transition-all duration-200 relative ${
+                tab === t ? 'bg-coral text-white shadow-glow' : 'text-gray-400'
+              }`}
+            >
+              {t === 'discover' ? '✨ Discover' : '❤️ Saved'}
+              {t === 'saved' && savedCount > 0 && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-extrabold ${
+                  tab === 'saved' ? 'bg-white/25 text-white' : 'bg-coral/15 text-coral'
+                }`}>
+                  {savedCount}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Discover tab */}
       <AnimatePresence mode="wait">
-        {(tab === 'discover' || isNewborn) && (
+        {tab === 'discover' && (
           <motion.div
             key="discover"
             initial={{ opacity: 0, x: -12 }}
@@ -109,11 +105,9 @@ export default function DiscoverPage() {
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.18 }}
           >
-            {!isNewborn && (
-              <p className="font-nunito text-gray-400 text-xs px-5 mb-3 font-semibold">
-                Swipe right to save ❤️ &nbsp;·&nbsp; Swipe left to skip
-              </p>
-            )}
+            <p className="font-nunito text-gray-400 text-xs px-5 mb-3 font-semibold">
+              Swipe right to save ❤️ &nbsp;·&nbsp; Swipe left to skip
+            </p>
             <div className="px-5">
               <SwipeDeck profile={profile} onLiked={refreshSaved} />
             </div>

@@ -171,7 +171,9 @@ export default function PlayPage({ params }: PageProps) {
           narratorId,
           narrator!.name,
           narrator!.personality,
-          ageGroup
+          ageGroup,
+          profile?.gender,
+          profile?.favouriteCategories
         );
         setStory(generated);
       } catch {

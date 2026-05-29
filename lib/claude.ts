@@ -55,12 +55,14 @@ export async function generateStory(
   narratorId: string,
   narratorName: string,
   narratorDescription: string,
-  ageGroup?: string
+  ageGroup?: string,
+  gender?: string,
+  interests?: string[]
 ): Promise<GeneratedStory> {
   const res = await fetch('/api/stories/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup }),
+    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup, gender, interests }),
   });
   if (!res.ok) throw new Error('Failed to generate story');
   const data = await res.json();

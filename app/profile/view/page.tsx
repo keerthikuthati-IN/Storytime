@@ -2,11 +2,65 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
 import { getProfile, getStorytimeData } from '@/lib/storage';
 import type { ChildProfile } from '@/lib/storage';
 import { getNarratorById } from '@/lib/narrators';
 import BottomNav from '@/components/BottomNav';
+
+const FAQ_ITEMS = [
+  {
+    q: 'Where is my child\'s data stored?',
+    a: 'Everything — your child\'s profile, memories, and photos — is saved privately on this device only. Nothing is uploaded to any server. If you clear your browser data, it will be erased.',
+  },
+  {
+    q: 'How are stories created?',
+    a: 'Each story is freshly written by AI (Claude by Anthropic) the moment you pick one. It uses your child\'s name, age group, and interests to craft a unique bedtime tale just for them. No two stories are ever the same.',
+  },
+  {
+    q: 'What information is sent to the AI?',
+    a: 'Only the story title, category, mood, your child\'s first name, and age group are sent when generating a story. Memories, photos, and any other personal data never leave your device.',
+  },
+  {
+    q: 'Can anyone else see our memories?',
+    a: 'No. Memories are stored in your browser\'s local storage and are completely private. They are never synced, backed up, or shared with anyone.',
+  },
+  {
+    q: 'Are lullabies and sounds safe for babies?',
+    a: 'Yes. All audio is carefully chosen for young ears — gentle volumes, soft tones, and looping ambient sounds. We recommend keeping device volume at a comfortable low level.',
+  },
+];
+
+function FaqItem({ item }: { item: typeof FAQ_ITEMS[0] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-gray-100 last:border-0">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between py-3.5 text-left gap-3"
+      >
+        <span className="font-nunito font-bold text-sm text-gray-700">{item.q}</span>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="flex-shrink-0">
+          <ChevronDown size={16} className="text-gray-400" />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="overflow-hidden"
+          >
+            <p className="font-nunito text-gray-500 text-sm leading-relaxed pb-4">{item.a}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function ProfileViewPage() {
   const router = useRouter();
@@ -82,6 +136,13 @@ export default function ProfileViewPage() {
         >
           ✏️ Edit Profile
         </motion.button>
+
+        {/* FAQ */}
+        <div className="bg-white rounded-3xl p-5 shadow-soft">
+          <h2 className="font-baloo font-bold text-base text-gray-700 mb-1">❓ FAQ</h2>
+          <p className="font-nunito text-xs text-gray-400 mb-3 font-semibold">Your data, privacy & how it works</p>
+          {FAQ_ITEMS.map(item => <FaqItem key={item.q} item={item} />)}
+        </div>
       </div>
 
       <BottomNav />

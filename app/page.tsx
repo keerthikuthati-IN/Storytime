@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProfile, getAgeGroup } from '@/lib/storage';
+import { getProfile } from '@/lib/storage';
 
 export default function Home() {
   const router = useRouter();
@@ -10,8 +10,7 @@ export default function Home() {
   useEffect(() => {
     const profile = getProfile();
     if (profile) {
-      const ageGroup = getAgeGroup(profile.age);
-      router.replace(ageGroup === 'newborn' ? '/sleep' : '/discover');
+      router.replace('/discover'); // all ages see stories (newborns get warmer story prompts)
     } else {
       router.replace('/profile');
     }

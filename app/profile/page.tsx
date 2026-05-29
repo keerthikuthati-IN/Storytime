@@ -54,7 +54,7 @@ export default function ProfilePage() {
 
     const age = AGE_GROUPS.find(g => g.group === selectedGroup)?.age ?? 2;
     saveProfile({ name: name.trim(), age, gender, favouriteCategories: categories });
-    router.push(selectedGroup === 'newborn' ? '/sleep' : '/discover');
+    router.push('/discover'); // all ages land on stories
   }
 
   return (

@@ -4,18 +4,23 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   try {
-    const { title, category, mood, childName, narratorName, narratorDescription, ageGroup = 'toddler' } = await req.json();
+    const { title, category, mood, childName, narratorName, narratorDescription, ageGroup = 'toddler', gender = 'neutral', interests = [] } = await req.json();
 
     const AGE_INSTRUCTIONS: Record<string, string> = {
-      'newborn':       '', // newborns don't get stories
+      'newborn':       'Write only 3 very short paragraphs (2 soft sentences each). Use only simple sensory words — warm, soft, gentle, cozy, quiet. Focus entirely on warmth and magical peacefulness, no plot or conflict. Use gentle repetition ("soft and warm, warm and soft"). The mood must be purely loving and magical. End with the world going still and the baby drifting to sleep.',
       'toddler':       'Use very simple words (1-2 syllables where possible). Write 4-5 short paragraphs. Use gentle repetition and rhythm. Rich sensory details (soft, warm, cozy, sleepy). End with the child drifting peacefully to sleep.',
       'early-learner': 'Use richer vocabulary with vivid imagery. Write 6-8 paragraphs. Include a simple narrative arc: a gentle challenge and a comforting resolution. You may include 1-2 Telugu words naturally with context (e.g., "the chandamama smiled down"). End with wonder and warmth, not excitement.',
     };
+
+    const genderHint = gender === 'girl' ? 'The child is a girl — use she/her pronouns if the child appears in the story.' : gender === 'boy' ? 'The child is a boy — use he/him pronouns if the child appears in the story.' : '';
+    const interestsHint = interests.length > 0 ? `The child loves: ${interests.join(', ')}. Weave these naturally into the story where it fits.` : '';
     const ageInstruction = AGE_INSTRUCTIONS[ageGroup] ?? AGE_INSTRUCTIONS['toddler'];
 
     const userPrompt = `Tell the classic bedtime story "${title}" in the style of ${narratorName}, who is ${narratorDescription}.
 The child's name is ${childName} — weave them in naturally as a small observer or friend of the main character if it fits.
 The story category is ${category} and overall mood is ${mood}.
+${genderHint}
+${interestsHint}
 
 ${ageInstruction}
 
