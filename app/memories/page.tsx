@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Plus, Images } from 'lucide-react';
+import { X, Camera, Plus, Images, Pencil } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import { getProfile } from '@/lib/storage';
 import {
-  getAllMemories, addMemory, deleteMemory, compressImage,
+  getAllMemories, addMemory, updateMemory, deleteMemory, compressImage,
   MEMORY_EMOJI_PRESETS,
   type Memory,
 } from '@/lib/memories';
@@ -33,7 +33,7 @@ function cardGradient(emoji: string): [string, string] {
 
 // ── Memory Card ──────────────────────────────────────────────────────────
 
-function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: () => void }) {
+function MemoryCard({ memory, onDelete, onEdit }: { memory: Memory; onDelete: () => void; onEdit: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -107,7 +107,16 @@ function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: () => void
                   <p className="font-nunito text-gray-500 text-sm leading-relaxed">{memory.note}</p>
                 )}
 
-                <div className="mt-6 pt-4 border-t border-gray-100">
+                <div className="mt-6 pt-4 border-t border-gray-100 space-y-2">
+                  {/* Edit button */}
+                  <button
+                    onClick={() => { setExpanded(false); onEdit(); }}
+                    className="w-full py-3 rounded-2xl bg-amber-50 text-amber-600 font-nunito font-bold text-sm flex items-center justify-center gap-2"
+                  >
+                    <Pencil size={14} /> Edit memory
+                  </button>
+
+                  {/* Delete */}
                   {confirmDelete ? (
                     <div className="flex gap-2">
                       <button onClick={() => { onDelete(); setExpanded(false); }}
@@ -258,6 +267,144 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   );
 }
 
+// ── Edit Memory Modal ─────────────────────────────────────────────────────
+
+function EditMemoryModal({ memory, onClose, onSaved }: { memory: Memory; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState(memory.title);
+  const [note,  setNote]  = useState(memory.note ?? '');
+  const [date,  setDate]  = useState(memory.date);
+  const [emoji, setEmoji] = useState(memory.emoji);
+  const [photo, setPhoto] = useState<string | undefined>(memory.photoDataUrl);
+  const [saving, setSaving] = useState(false);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const compressed = await compressImage(file, 100);
+    setPhoto(compressed);
+  }
+
+  async function handleSave() {
+    if (!title.trim()) return;
+    setSaving(true);
+    await updateMemory({
+      ...memory,
+      title: title.trim(),
+      note: note.trim() || undefined,
+      date,
+      emoji,
+      photoDataUrl: photo,
+    });
+    setSaving(false);
+    onSaved();
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[80] flex items-end justify-center"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    >
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <motion.div
+        className="relative bg-white w-full max-w-[430px] rounded-t-3xl flex flex-col"
+        style={{ maxHeight: 'calc(100dvh - 16px)' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-50 flex-shrink-0">
+          <button onClick={onClose} className="text-gray-400 p-1"><X size={20} /></button>
+          <h2 className="font-baloo font-bold text-xl text-gray-800">Edit Memory</h2>
+          <motion.button
+            whileTap={{ scale: 0.93 }}
+            onClick={handleSave}
+            disabled={!title.trim() || saving}
+            className="bg-coral text-white px-4 py-2 rounded-2xl font-nunito font-bold text-sm shadow-glow disabled:opacity-40 transition-opacity"
+          >
+            {saving ? '…' : 'Save'}
+          </motion.button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-4 pb-6">
+
+          {/* Emoji picker */}
+          <div>
+            <label className="block font-nunito font-bold text-xs text-gray-400 mb-2 uppercase tracking-wider">Emoji</label>
+            <div className="flex flex-wrap gap-2">
+              {MEMORY_EMOJI_PRESETS.map(e => (
+                <button
+                  key={e}
+                  onClick={() => setEmoji(e)}
+                  className={`w-10 h-10 rounded-2xl text-xl flex items-center justify-center transition-all ${
+                    emoji === e ? 'bg-coral/15 ring-2 ring-coral/50 scale-110' : 'bg-gray-50'
+                  }`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="block font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Title *</label>
+            <input
+              type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={80}
+              className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 font-nunito text-gray-800 text-sm focus:outline-none focus:border-coral/40"
+            />
+          </div>
+
+          {/* Note */}
+          <div>
+            <label className="block font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Note (optional)</label>
+            <textarea
+              value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={400}
+              className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 font-nunito text-gray-700 text-sm focus:outline-none focus:border-coral/40 resize-none"
+            />
+          </div>
+
+          {/* Date + Photo */}
+          <div className="flex gap-3 items-start">
+            <div className="flex-1">
+              <label className="block font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Date</label>
+              <input
+                type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full border-2 border-gray-100 rounded-2xl px-3 py-3 font-nunito text-gray-800 text-sm focus:outline-none focus:border-coral/40"
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <p className="font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Photo</p>
+              <input ref={fileRef}   type="file" accept="image/*"                    className="hidden" onChange={handlePhoto} />
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
+              {photo ? (
+                <div className="relative">
+                  <img src={photo} alt="" className="w-[72px] h-[46px] rounded-2xl object-cover" />
+                  <button onClick={() => setPhoto(undefined)} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow">✕</button>
+                </div>
+              ) : (
+                <div className="flex gap-1.5">
+                  <button onClick={() => cameraRef.current?.click()}
+                    className="w-[34px] h-[46px] border-2 border-dashed border-coral/30 rounded-2xl flex flex-col items-center justify-center text-coral/50" title="Take photo">
+                    <Camera size={13} />
+                  </button>
+                  <button onClick={() => fileRef.current?.click()}
+                    className="w-[34px] h-[46px] border-2 border-dashed border-coral/30 rounded-2xl flex flex-col items-center justify-center text-coral/50" title="Choose from gallery">
+                    <Images size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ── Timeline Group ───────────────────────────────────────────────────────
 
 function groupByMonth(memories: Memory[]): { label: string; items: Memory[] }[] {
@@ -274,9 +421,10 @@ function groupByMonth(memories: Memory[]): { label: string; items: Memory[] }[] 
 // ── Memories Page ────────────────────────────────────────────────────────
 
 export default function MemoriesPage() {
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [showAdd, setShowAdd]   = useState(false);
-  const [loading, setLoading]   = useState(true);
+  const [memories, setMemories]       = useState<Memory[]>([]);
+  const [showAdd,  setShowAdd]        = useState(false);
+  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
+  const [loading, setLoading]         = useState(true);
   const [profileName, setProfileName] = useState<string | null>(null);
 
   async function loadMemories() {
@@ -358,7 +506,7 @@ export default function MemoriesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <MemoryCard memory={m} onDelete={() => handleDelete(m.id)} />
+                    <MemoryCard memory={m} onDelete={() => handleDelete(m.id)} onEdit={() => setEditingMemory(m)} />
                   </motion.div>
                 ))}
               </div>
@@ -373,6 +521,17 @@ export default function MemoriesPage() {
           <AddMemoryModal
             onClose={() => setShowAdd(false)}
             onSaved={() => { setShowAdd(false); loadMemories(); }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Edit Memory modal */}
+      <AnimatePresence>
+        {editingMemory && (
+          <EditMemoryModal
+            memory={editingMemory}
+            onClose={() => setEditingMemory(null)}
+            onSaved={() => { setEditingMemory(null); loadMemories(); }}
           />
         )}
       </AnimatePresence>
