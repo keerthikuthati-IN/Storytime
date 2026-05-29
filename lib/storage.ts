@@ -1,3 +1,5 @@
+import type { GeneratedStory } from './claude';
+
 export type AgeGroup = 'newborn' | 'toddler' | 'early-learner';
 
 export function getAgeGroup(age: number): AgeGroup {
@@ -102,4 +104,53 @@ export function deleteSavedStory(storyId: string): void {
     const objects = JSON.parse(raw);
     localStorage.setItem('storytime_liked_objects', JSON.stringify(objects.filter((s: { id: string }) => s.id !== storyId)));
   } catch { /* ignore */ }
+
+  // Also evict the cached story content
+  deleteCachedStory(storyId);
+}
+
+// ── Story content cache ────────────────────────────────────────────────────
+// Generate once, store permanently. First play = API call + save.
+// Every subsequent play = load from localStorage, zero API cost.
+
+export interface CachedStory {
+  story: GeneratedStory;
+  title: string;
+  category: string;
+  mood: string;
+  narratorId: string;
+  cachedAt: number; // Date.now()
+}
+
+const STORY_CACHE_PREFIX = 'storytime_story_';
+
+export function getCachedStory(storyId: string): CachedStory | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORY_CACHE_PREFIX + storyId);
+    return raw ? (JSON.parse(raw) as CachedStory) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setCachedStory(storyId: string, cached: CachedStory): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORY_CACHE_PREFIX + storyId, JSON.stringify(cached));
+  } catch {
+    // Storage full or unavailable — silently skip; story still plays this session
+  }
+}
+
+export function deleteCachedStory(storyId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORY_CACHE_PREFIX + storyId);
+  } catch { /* ignore */ }
+}
+
+export function hasStoryCached(storyId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(STORY_CACHE_PREFIX + storyId) !== null;
 }

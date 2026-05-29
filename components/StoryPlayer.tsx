@@ -4,17 +4,21 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressBar from './ProgressBar';
 import type { GeneratedStory, StoryParagraph } from '@/lib/claude';
+import { generateStory } from '@/lib/claude';
 import type { Narrator } from '@/lib/narrators';
+import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
+import { markPlayed, setCachedStory, getProfile, getAgeGroup } from '@/lib/storage';
+import { useTTS } from '@/lib/useTTS';
 
 const MUSIC_DUCK = 0.012; // nearly inaudible while TTS is speaking (~6% of normal)
-import { markPlayed } from '@/lib/storage';
-import { useTTS } from '@/lib/useTTS';
 
 interface StoryPlayerProps {
   story: GeneratedStory;
   narrator: Narrator;
   storyId: string;
+  fromCache: boolean;
+  storyMeta: { title: string; category: string; mood: string; narratorId: string };
   onEnd: () => void;
 }
 
@@ -49,11 +53,11 @@ function MoodParticles({ mood }: { mood: StoryMood }) {
     emojis.map((emoji, i) => ({
       id: i,
       emoji,
-      x: 3 + (i * 7) % 93,          // spread across full width
+      x: 3 + (i * 7) % 93,
       delay: (i * 0.55) % 8,
-      dur: 10 + (i * 1.3) % 8,       // 10–18s, slow and peaceful
-      size: 20 + (i * 6) % 20,       // 20–40px, big enough to see
-      opacity: 0.55 + (i % 3) * 0.1, // 0.55–0.75, visible but not harsh
+      dur: 10 + (i * 1.3) % 8,
+      size: 20 + (i * 6) % 20,
+      opacity: 0.55 + (i % 3) * 0.1,
     }))
   );
 
@@ -114,21 +118,26 @@ function MoodBackground({ mood }: { mood: StoryMood }) {
   );
 }
 
-export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPlayerProps) {
-  const [paraIndex, setParaIndex]   = useState(-1);
-  const [speaking, setSpeaking]     = useState(false);
-  const [paused, setPaused]         = useState(false);
-  const [musicOn, setMusicOn]       = useState(true);
-  const [ended, setEnded]           = useState(false);
-  const [ttsLoading, setTtsLoading] = useState(false);
+export default function StoryPlayer({ story, narrator, storyId, fromCache, storyMeta, onEnd }: StoryPlayerProps) {
+  // Lift story prop → local state so it can be replaced during regeneration
+  const [currentStory, setCurrentStory] = useState<GeneratedStory>(story);
+
+  const [paraIndex, setParaIndex]         = useState(-1);
+  const [speaking, setSpeaking]           = useState(false);
+  const [paused, setPaused]               = useState(false);
+  const [musicOn, setMusicOn]             = useState(true);
+  const [ended, setEnded]                 = useState(false);
+  const [ttsLoading, setTtsLoading]       = useState(false);
+  const [regenerating, setRegenerating]   = useState(false);
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
 
   const howlRef        = useRef<import('howler').Howl | null>(null);
   const currentMoodRef = useRef<StoryMood>('calm');
   const pausedRef      = useRef(false);
 
-  const currentPara: StoryParagraph | null = paraIndex >= 0 ? story.paragraphs[paraIndex] : null;
+  const currentPara: StoryParagraph | null = paraIndex >= 0 ? currentStory.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';
-  const totalSlides = story.paragraphs.length;
+  const totalSlides = currentStory.paragraphs.length;
 
   // ── TTS (Sarvam primary, Web Speech fallback) ──
   const { speak, stop } = useTTS(setSpeaking);
@@ -139,7 +148,7 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
     const { Howl } = await import('howler');
     if (howlRef.current) {
       if (currentMoodRef.current === mood) return;
-      howlRef.current.fade(howlRef.current.volume(), 0, 600); // fade from actual vol, not hardcoded
+      howlRef.current.fade(howlRef.current.volume(), 0, 600);
       setTimeout(() => howlRef.current?.unload(), 700);
     }
     currentMoodRef.current = mood;
@@ -170,8 +179,6 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   }, [speaking]);
 
   // Duck music while TTS is speaking.
-  // Use pausedRef.current (sync ref) not paused state — the ref is set before
-  // stop() is called so by the time this effect fires, the guard is already true.
   useEffect(() => {
     const howl = howlRef.current;
     if (!howl || !musicOn || pausedRef.current) return;
@@ -189,11 +196,11 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
 
     if (paraIndex === -1) {
       setTtsLoading(true);
-      speak(story.narrator_intro, 'english', () => {
+      speak(currentStory.narrator_intro, 'english', () => {
         setTimeout(() => setParaIndex(0), 400);
       });
     } else if (paraIndex < totalSlides) {
-      const para = story.paragraphs[paraIndex];
+      const para = currentStory.paragraphs[paraIndex];
       startMusic(para.mood as StoryMood);
       setTtsLoading(true);
       speak(para.text, 'english', () => {
@@ -205,8 +212,6 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
       });
     }
 
-    // Cleanup: cancel this speak() if React re-runs the effect (StrictMode
-    // double-invoke) or if the component unmounts before audio ends.
     return () => { stop(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paraIndex]);
@@ -214,14 +219,13 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   // ── Controls ────────────────────────────────────
   function togglePause() {
     if (paused) {
-      // Resume — fade music back in, then re-speak
       pausedRef.current = false;
       setPaused(false);
       if (howlRef.current) {
         howlRef.current.play();
-        howlRef.current.fade(0, MUSIC_DUCK, 600); // start quiet; ducking effect will set final level
+        howlRef.current.fade(0, MUSIC_DUCK, 600);
       }
-      const text = paraIndex === -1 ? story.narrator_intro : story.paragraphs[paraIndex]?.text ?? '';
+      const text = paraIndex === -1 ? currentStory.narrator_intro : currentStory.paragraphs[paraIndex]?.text ?? '';
       speak(text, 'english', () => {
         if (paraIndex === -1) {
           setTimeout(() => setParaIndex(0), 400);
@@ -232,7 +236,6 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
         }
       });
     } else {
-      // Pause — fade music out then pause
       pausedRef.current = true;
       stop();
       if (howlRef.current) {
@@ -260,14 +263,122 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   }
 
   function handleExit() {
-    pausedRef.current = true; // block ducking effect before stop() triggers setSpeaking(false)
+    pausedRef.current = true;
     stop();
     stopMusic();
     onEnd();
   }
 
+  // ── Regeneration ────────────────────────────────
+  async function handleRegenerate() {
+    setShowRegenConfirm(false);
+    setRegenerating(true);
+    setEnded(false);
+    try {
+      const profile = getProfile();
+      const ageGroup = profile ? getAgeGroup(profile.age) : 'toddler';
+      const narr = getNarratorById(storyMeta.narratorId) ?? getDefaultNarrator();
+      const fresh = await generateStory(
+        storyMeta.title,
+        storyMeta.category,
+        storyMeta.mood,
+        profile?.name ?? 'the child',
+        storyMeta.narratorId,
+        narr.name,
+        narr.personality,
+        ageGroup,
+        profile?.gender,
+        profile?.favouriteCategories,
+      );
+      setCachedStory(storyId, {
+        story: fresh,
+        title: storyMeta.title,
+        category: storyMeta.category,
+        mood: storyMeta.mood,
+        narratorId: storyMeta.narratorId,
+        cachedAt: Date.now(),
+      });
+      setCurrentStory(fresh);
+      setParaIndex(-1);
+    } catch {
+      setEnded(true); // restore end screen on failure
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  // ── Regenerating screen ─────────────────────────
+  if (regenerating) {
+    return (
+      <div className="h-screen fun-bg flex flex-col items-center justify-center text-center px-6">
+        <motion.div
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ fontSize: 80 }}
+        >
+          {narrator.emoji}
+        </motion.div>
+        <p className="font-baloo font-bold text-lg text-gray-700 mt-5">Weaving a new story…</p>
+        <div className="flex gap-2 mt-4">
+          {[0.1, 0.2, 0.3].map(d => (
+            <motion.div
+              key={d}
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 0.8, repeat: Infinity, delay: d }}
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ background: narrator.accentColor }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── End screen ──────────────────────────────────
   if (ended) {
-    return <EndScreen narrator={narrator} onAgain={() => { setEnded(false); setParaIndex(-1); }} onEnd={onEnd} />;
+    return (
+      <div className="relative">
+        <EndScreen
+          narrator={narrator}
+          onAgain={() => { setEnded(false); setParaIndex(-1); }}
+          onEnd={onEnd}
+          fromCache={fromCache}
+          onRequestNewVersion={() => setShowRegenConfirm(true)}
+        />
+        {/* Confirmation dialog */}
+        {showRegenConfirm && (
+          <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-center pb-10">
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="bg-white rounded-3xl px-6 pt-6 pb-8 mx-4 shadow-2xl max-w-sm w-full"
+            >
+              <p className="font-baloo font-bold text-lg text-gray-800 text-center mb-2">
+                Create a new version?
+              </p>
+              <p className="font-nunito text-sm text-gray-500 text-center mb-6 leading-relaxed">
+                This will replace the saved story with a brand-new one.{' '}
+                The old version cannot be recovered.
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={handleRegenerate}
+                  className="w-full bg-coral text-white py-3.5 rounded-2xl font-nunito font-bold shadow-glow"
+                >
+                  Yes, make a new story
+                </button>
+                <button
+                  onClick={() => setShowRegenConfirm(false)}
+                  className="w-full text-gray-500 py-3 font-nunito font-semibold text-sm"
+                >
+                  Keep this version
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -287,7 +398,7 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
         </motion.div>
       </AnimatePresence>
 
-      {/* Mood-specific floating emojis — fly over everything including the text card */}
+      {/* Mood-specific floating emojis */}
       <AnimatePresence mode="wait">
         <motion.div
           key={currentMood}
@@ -330,10 +441,10 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
             {paraIndex === -1 ? (
               <div className="text-center">
                 <p className="font-baloo font-bold text-2xl text-gray-800 mb-3 leading-snug">
-                  {story.title}
+                  {currentStory.title}
                 </p>
                 <p className="font-nunito text-gray-600 text-lg leading-relaxed italic">
-                  {story.narrator_intro}
+                  {currentStory.narrator_intro}
                 </p>
               </div>
             ) : (
@@ -415,11 +526,23 @@ const END_STARS = Array.from({ length: 12 }, (_, i) => ({
   emoji: i % 4 === 0 ? '✨' : i % 3 === 0 ? '⭐' : '✦',
 }));
 
-function EndScreen({ narrator, onAgain, onEnd }: { narrator: Narrator; onAgain: () => void; onEnd: () => void }) {
+function EndScreen({
+  narrator,
+  onAgain,
+  onEnd,
+  fromCache,
+  onRequestNewVersion,
+}: {
+  narrator: Narrator;
+  onAgain: () => void;
+  onEnd: () => void;
+  fromCache: boolean;
+  onRequestNewVersion: () => void;
+}) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F5F0FF] to-[#EDE8F8] flex flex-col items-center justify-center px-6 text-center relative overflow-hidden">
 
-      {/* Soft star field — no confetti, just gentle wonder */}
+      {/* Soft star field */}
       {END_STARS.map(s => (
         <motion.div
           key={s.id}
@@ -453,6 +576,15 @@ function EndScreen({ narrator, onAgain, onEnd }: { narrator: Narrator; onAgain: 
         <button onClick={onEnd} className="w-full bg-white text-gray-700 py-4 rounded-3xl font-nunito font-bold text-base border border-gray-100">
           📚 Pick another story
         </button>
+        {/* Subtle escape hatch for parents who want a fresh version */}
+        {fromCache && (
+          <button
+            onClick={onRequestNewVersion}
+            className="w-full text-gray-400 py-3 font-nunito text-sm"
+          >
+            ✦ Get a new version of this story
+          </button>
+        )}
       </motion.div>
     </div>
   );

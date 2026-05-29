@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Trash2, Check } from 'lucide-react';
-import { getProfile, deleteSavedStory, getAgeGroup } from '@/lib/storage'; // getAgeGroup used below for SwipeDeck
+import { getProfile, deleteSavedStory, getAgeGroup, hasStoryCached } from '@/lib/storage'; // getAgeGroup used below for SwipeDeck
 import type { ChildProfile } from '@/lib/storage';
 import type { StoryRecommendation } from '@/lib/claude';
 import { getCategoryStyle } from '@/lib/storyCovers';
@@ -59,6 +59,7 @@ export default function DiscoverPage() {
   }
 
   const savedCount = savedStories.length;
+  const cachedIds = new Set(savedStories.map(s => s.id).filter(id => hasStoryCached(id)));
 
   return (
     <div className="min-h-screen fun-bg pb-24">
@@ -172,6 +173,12 @@ export default function DiscoverPage() {
                         <span className="absolute bottom-2 left-2 bg-white/80 text-gray-600 text-[10px] font-nunito font-extrabold px-2 py-0.5 rounded-full">
                           {story.category}
                         </span>
+                        {/* 📖 badge — shown when story content has been generated and saved */}
+                        {cachedIds.has(story.id) && confirmDeleteId !== story.id && (
+                          <span className="absolute bottom-2 right-2 bg-white/80 text-[10px] font-nunito font-extrabold px-1.5 py-0.5 rounded-full text-indigo-500">
+                            📖
+                          </span>
+                        )}
                         <motion.button
                           whileTap={{ scale: 0.85 }}
                           onClick={(e) => handleDelete(e, story.id)}

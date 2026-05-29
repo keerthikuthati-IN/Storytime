@@ -7,7 +7,7 @@ import StoryPlayer from '@/components/StoryPlayer';
 import { generateStory, type GeneratedStory } from '@/lib/claude';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
-import { getProfile, getAgeGroup } from '@/lib/storage';
+import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
 
 interface PageProps {
   params: Promise<{ storyId: string }>;
@@ -121,6 +121,7 @@ export default function PlayPage({ params }: PageProps) {
   const [story, setStory] = useState<GeneratedStory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fromCache, setFromCache] = useState(false);
 
   const narrator = getNarratorById(narratorId) ?? getDefaultNarrator();
   const profile = typeof window !== 'undefined' ? getProfile() : null;
@@ -162,6 +163,16 @@ export default function PlayPage({ params }: PageProps) {
       setLoading(true);
       setError(null);
       try {
+        // Cache hit — load instantly, skip API call entirely
+        const cached = getCachedStory(decodeURIComponent(storyId));
+        if (cached) {
+          setStory(cached.story);
+          setFromCache(true);
+          setLoading(false);
+          return;
+        }
+
+        // Cache miss — generate fresh, then persist for all future plays
         const ageGroup = profile ? getAgeGroup(profile.age) : 'toddler';
         const generated = await generateStory(
           title,
@@ -175,7 +186,18 @@ export default function PlayPage({ params }: PageProps) {
           profile?.gender,
           profile?.favouriteCategories
         );
+
+        setCachedStory(decodeURIComponent(storyId), {
+          story: generated,
+          title,
+          category,
+          mood,
+          narratorId,
+          cachedAt: Date.now(),
+        });
+
         setStory(generated);
+        setFromCache(false);
       } catch {
         setError('Could not generate story. Please check your API key and connection.');
       } finally {
@@ -188,7 +210,7 @@ export default function PlayPage({ params }: PageProps) {
 
   if (!narrator) return null;
 
-  if (loading) {
+  if (loading && !fromCache) {
     return (
       <div className="h-screen relative overflow-hidden fun-bg">
         <LoadingParticles narratorId={narratorId} />
@@ -266,6 +288,8 @@ export default function PlayPage({ params }: PageProps) {
       story={story}
       narrator={narrator}
       storyId={decodeURIComponent(storyId)}
+      fromCache={fromCache}
+      storyMeta={{ title, category, mood, narratorId }}
       onEnd={() => router.push('/my-stories')}
     />
   );
