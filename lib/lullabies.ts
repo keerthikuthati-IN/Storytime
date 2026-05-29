@@ -25,7 +25,7 @@ export const LULLABIES: Lullaby[] = [
     intro: 'Let Nani sing you a little song about the stars that shine just for you...',
     verses: [
       'Little stars are shining bright\nFloating softly through the night\nMoon is singing from above\nWrapping dreams in sleepy love',
-      'Twinkle softly, little light\nGuide us gently through the night\nClose your eyes and drift away\nDreams will dance till break of day',
+      'Twinkle softly little light\nGuide us gently through the night\nClose your eyes and drift away\nDreams will dance till break of day',
     ],
   },
   {
@@ -37,8 +37,8 @@ export const LULLABIES: Lullaby[] = [
     durationEstimate: '2–3 min',
     intro: 'Settle in, little one. Nani will sing you softly to dreamland...',
     verses: [
-      'Sleep now little one so dear\nMoonlight whispers softly near\nClouds are sailing calm and slow\nDreamland waits with gentle glow',
-      'Tiny eyes are growing sweet\nNighttime sings a peaceful beat\nStars will guard you through the night\nTill the morning brings new light',
+      'Sleepy head, sleep\nThe world is a blur\nRest your head, rest\nHush, little one',
+      'Hush now my love\nThe stars above keep watch\nClose your eyes now\nHush now',
     ],
   },
   {
@@ -50,7 +50,7 @@ export const LULLABIES: Lullaby[] = [
     durationEstimate: '2–3 min',
     intro: 'Sway gently, like a leaf on a sleepy breeze. Nani is here...',
     verses: [
-      'Rocking softly in the breeze\nDancing leaves upon the trees\nNight is humming lullabies\nSleepy moon in velvet skies',
+      'Rocking softly in the breeze\nDancing leaves upon the trees\nNight is humming lullabies\nSleepy moon in velvet sky',
       'Close your eyes and float away\nDreams will gently come and stay\nWarm and safe the whole night through\nMagic stars will watch over you',
     ],
   },
@@ -63,8 +63,8 @@ export const LULLABIES: Lullaby[] = [
     durationEstimate: '2–3 min',
     intro: 'Shh... hush now, sweet one. Let Nani sing all your worries away...',
     verses: [
-      'Hush now little sleepy one\nMoon and stars have just begun\nTiny dreams are floating near\nNighttime songs are soft and clear',
-      'Close your eyes so warm and tight\nMagic fills the gentle night\nClouds will rock you while you rest\nSleepy dreams are always best',
+      'Sleep now little firefly\nFloating softly through the sky\nMoonbeams dance upon your bed\nClouds above your head',
+      'Nighttime sings so warm and low\nTiny stars begin to glow\nClose your eyes and drift so deep\nMagic night will guard your sleep',
     ],
   },
   {
@@ -76,8 +76,8 @@ export const LULLABIES: Lullaby[] = [
     durationEstimate: '2–3 min',
     intro: 'You are Nani\'s little sunshine. Let me sing this song just for you...',
     verses: [
-      'You are my little shining light\nMy sleepy star so warm and bright\nEvery night the moon will say\nDream with joy till morning day',
-      'Tiny laughter soft and sweet\nDreams will dance to bedtime beat\nClose your eyes and drift so slow\nWrapped in love and gentle glow',
+      'Golden morning in your smile\nTiny laughter soft and bright\nLittle heartbeat full of light\nShining softly through the night',
+      'Wrapped in gentle sleepy love\nDreams will find you warm and bright\nLittle star of silver light',
     ],
   },
   {
@@ -89,8 +89,8 @@ export const LULLABIES: Lullaby[] = [
     durationEstimate: '1–2 min',
     intro: 'The little sheep are going to sleep, and so are you. Let Nani sing...',
     verses: [
-      'Little sheep are going to sleep\nStars above are shining deep\nSoft night wind begins to sway\nDreamland calls at end of day',
-      'Tiny hooves and fluffy white\nSleeping softly through the night\nMoonlight sings a gentle tune\nMorning will be coming soon',
+      'Little lamb on sleepy grass\nWatching sleepy fireflies pass\nMoonlight breeze begins to sway\nStars are humming end of day',
+      'Tiny clouds drift far and slow\nSilver rivers softly glow\nCurl up warm and close your eyes\nDreamland waits beyond the skies',
     ],
   },
 
