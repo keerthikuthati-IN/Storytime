@@ -121,6 +121,94 @@ function MoodBackground({ mood }: { mood: StoryMood }) {
   );
 }
 
+// ── Scene Card ─────────────────────────────────────────────────────────────
+// Instant, always-distinct illustration base layer. Zero network required.
+// 5 moods × 15 categories × 3 layout variants = 225 unique visual combinations.
+
+const SCENE_EMOJIS: Record<string, { hero: string; world: string[]; accent: string[] }> = {
+  'Animals':              { hero: '🐻', world: ['🌿','🌳','🍃'], accent: ['🦋','🐦','🌸'] },
+  'Adventure':            { hero: '🗺️', world: ['🏔️','🌊','🏕️'], accent: ['⚡','🌟','🔥'] },
+  'Magic':                { hero: '🪄', world: ['✨','🌟','💫'], accent: ['🔮','🌙','⭐'] },
+  'Bedtime':              { hero: '🌙', world: ['☁️','⭐','🌠'], accent: ['💤','🕊️','🌸'] },
+  'Friendship':           { hero: '🤝', world: ['🌈','🌻','🌸'], accent: ['💛','🎈','🌺'] },
+  'Nature':               { hero: '🌿', world: ['🌳','🌊','🌄'], accent: ['🦋','🐦','🌸'] },
+  'Vehicles':             { hero: '🚂', world: ['🏙️','🌄','🌿'], accent: ['⚡','💨','🌟'] },
+  'Superheroes':          { hero: '🦸', world: ['🌆','⭐','🌟'], accent: ['⚡','💥','🔥'] },
+  'Fairy Tales':          { hero: '🏰', world: ['🌙','✨','🌟'], accent: ['🌸','🦋','💜'] },
+  'Space':                { hero: '🚀', world: ['⭐','🌙','🪐'], accent: ['💫','✨','🌟'] },
+  'Chandamama Folk Tale': { hero: '🌕', world: ['⭐','🌙','☁️'], accent: ['✨','🌸','💫'] },
+  'Panchatantra':         { hero: '📖', world: ['🌿','🌳','🏕️'], accent: ['🦁','🐒','🦅'] },
+  'Tenali Rama':          { hero: '🪔', world: ['🏛️','🌸','🌿'], accent: ['👑','📜','💛'] },
+  'Krishna Stories':      { hero: '🦚', world: ['🌿','🌊','🌸'], accent: ['🧈','🪷','💛'] },
+  'Jataka Tales':         { hero: '🐘', world: ['🌿','🌳','🌊'], accent: ['💛','🌸','🦋'] },
+};
+
+const SCENE_GRADIENTS: Record<StoryMood, string[]> = {
+  calm:     ['linear-gradient(135deg,#E8F4FD,#EDE8F8)','linear-gradient(160deg,#EDF4FB,#F0EAF8)','linear-gradient(120deg,#F0F8FF,#EDE8F8)'],
+  happy:    ['linear-gradient(135deg,#FFFDE7,#FFF0DC)','linear-gradient(160deg,#FFF8DC,#FCE8D0)','linear-gradient(120deg,#FFFDE7,#FFE8CC)'],
+  magical:  ['linear-gradient(135deg,#F3E5F5,#EDE7F6)','linear-gradient(160deg,#EDE7F6,#F8F0FF)','linear-gradient(120deg,#F8F0FF,#EDE7F6)'],
+  exciting: ['linear-gradient(135deg,#FFF3E0,#FFE0B2)','linear-gradient(160deg,#FFF8E1,#FFECB3)','linear-gradient(120deg,#FFF3E0,#FFECB3)'],
+  tense:    ['linear-gradient(135deg,#E8EAF6,#EDE8F8)','linear-gradient(160deg,#EDE8F8,#F3F4F9)','linear-gradient(120deg,#F3F4F9,#E8EAF6)'],
+};
+
+function SceneCard({ mood, category, paraIndex }: { mood: StoryMood; category: string; paraIndex: number }) {
+  const variant  = Math.abs(paraIndex + 1) % 3; // +1 so intro (−1) → variant 0
+  const gradient = (SCENE_GRADIENTS[mood] ?? SCENE_GRADIENTS.calm)[variant];
+  const emojis   = SCENE_EMOJIS[category] ?? SCENE_EMOJIS['Adventure'];
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden select-none"
+      style={{ background: gradient }}>
+
+      {/* Layout variant 0 — character centre stage */}
+      {variant === 0 && (
+        <>
+          <div style={{ fontSize: 90, lineHeight: 1 }}>{emojis.hero}</div>
+          <div className="flex gap-5 mt-4 opacity-60">
+            {emojis.world.map((e, i) => (
+              <span key={i} style={{ fontSize: 30 + (i % 2) * 8 }}>{e}</span>
+            ))}
+          </div>
+          <div className="flex gap-4 mt-3 opacity-40">
+            {emojis.accent.slice(0, 2).map((e, i) => (
+              <span key={i} style={{ fontSize: 22 }}>{e}</span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Layout variant 1 — wide panorama */}
+      {variant === 1 && (
+        <>
+          <div className="flex gap-6 opacity-55 mb-2">
+            {emojis.world.map((e, i) => (
+              <span key={i} style={{ fontSize: 40 + (i % 2) * 12 }}>{e}</span>
+            ))}
+          </div>
+          <div style={{ fontSize: 80, lineHeight: 1 }}>{emojis.hero}</div>
+          <div className="flex gap-4 mt-3 opacity-40">
+            {emojis.accent.map((e, i) => (
+              <span key={i} style={{ fontSize: 20 }}>{e}</span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Layout variant 2 — action close-up */}
+      {variant === 2 && (
+        <div className="flex items-end justify-center gap-6">
+          <span style={{ fontSize: 56, opacity: 0.6 }}>{emojis.world[0]}</span>
+          <span style={{ fontSize: 96, lineHeight: 1 }}>{emojis.hero}</span>
+          <div className="flex flex-col gap-2 opacity-65">
+            <span style={{ fontSize: 34 }}>{emojis.accent[0]}</span>
+            <span style={{ fontSize: 26 }}>{emojis.world[1]}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StoryPlayer({ story, narrator, storyId, fromCache, storyMeta, initialIllustrations, onEnd }: StoryPlayerProps) {
   // Resolved once — stable for the lifetime of this player instance
   const storyLanguage = (storyMeta.language ?? story.language ?? 'english') as 'english' | 'telugu';
@@ -584,12 +672,13 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     );
   }
 
-  // Walk back from paraIndex to find the nearest available illustration.
-  // Gives continuity: previous scene (or portrait) stays visible until the new one arrives.
+  // Find best available illustration — max 1 step back so user never sees portrait
+  // reappear mid-story. Scene N not ready → show scene N-1 (the page just left).
   const displayParaIdx = (() => {
-    for (let i = paraIndex; i >= -1; i--) {
-      if (illustrations[i] != null) return i;
-    }
+    if (illustrations[paraIndex] != null) return paraIndex;
+    const prev = paraIndex - 1; // equals -1 when paraIndex=0, which is correct (show portrait)
+    if (prev >= -1 && illustrations[prev] != null) return prev;
+    if (illustrations[-1] != null) return -1; // absolute last resort
     return null;
   })();
   const displayIllus = displayParaIdx != null ? illustrations[displayParaIdx] : null;
@@ -653,24 +742,25 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
-        {/* Shimmer — shown when no illustration (not even portrait fallback) is ready yet */}
-        {showIllustrations && !displayIllus && (
+        {/* Scene Card — instant base layer, always distinct per scene.
+            Visible until AI illustration arrives, then crossfades behind it.
+            Key changes on every paraIndex so the card always updates. */}
+        <AnimatePresence mode="wait">
           <motion.div
-            className="absolute inset-0 pointer-events-none"
-            style={{ zIndex: 4, overflow: 'hidden' }}
+            key={`card-${paraIndex}`}
+            className="absolute inset-0"
+            style={{ zIndex: 3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
           >
-            <motion.div
-              className="absolute inset-0"
-              style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%)' }}
-              animate={{ x: ['-100%', '100%'] }}
-              transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
-            />
+            <SceneCard mood={currentMood} category={storyMeta.category} paraIndex={paraIndex} />
           </motion.div>
-        )}
+        </AnimatePresence>
 
-        {/* Illustration — shows best available; crossfades when a new scene image arrives.
-            Key changes only when displayParaIdx changes, so the previous illustration
-            stays on screen (no blank gap) while Pollinations loads the next one. */}
+        {/* AI Illustration — crossfades over SceneCard when Pollinations delivers it.
+            Key changes only when displayParaIdx changes (max 1 step back fallback). */}
         <AnimatePresence>
           {showIllustrations && displayIllus && (
             <motion.div
