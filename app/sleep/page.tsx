@@ -45,10 +45,10 @@ function PlayerStage({
     : null;
 
   const moonColor = isSound
-    ? { from: '#fffce0', to: '#ffd97d', shadow: 'rgba(255,220,100,0.5)' }
+    ? { from: '#fffce0', to: '#ffd97d', shadow: 'rgba(255,220,100,0.5)', border: 'none' }
     : isLullaby
-    ? { from: '#ffe8f0', to: '#ffb8d0', shadow: 'rgba(255,150,180,0.5)' }
-    : { from: '#2a2050', to: '#1a1535', shadow: 'transparent' };
+    ? { from: '#ffe8f0', to: '#ffb8d0', shadow: 'rgba(255,150,180,0.5)', border: 'none' }
+    : { from: 'transparent', to: 'transparent', shadow: 'transparent', border: '2px solid rgba(255,255,255,0.3)' };
 
   return (
     <div
@@ -69,18 +69,19 @@ function PlayerStage({
             width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
             background: `radial-gradient(circle at 35% 35%, ${moonColor.from}, ${moonColor.to})`,
             boxShadow: playing ? `0 0 24px ${moonColor.shadow}` : 'none',
-            border: isIdle ? '1px solid rgba(255,255,255,0.1)' : 'none',
+            border: moonColor.border,
           }}
         />
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>
             {isSound ? '🔊 Sound' : isLullaby ? '🎵 Lullaby' : 'Nothing playing'}
             {playing ? ' · Playing' : isIdle ? '' : ' · Paused'}
           </p>
           <p style={{
-            fontSize: 15, fontWeight: 800, color: isIdle ? 'rgba(255,255,255,0.2)' : 'white',
+            fontSize: 15, fontWeight: 800,
+            color: isIdle ? 'rgba(255,255,255,0.65)' : 'white',
             fontStyle: isIdle ? 'italic' : 'normal',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
@@ -95,10 +96,10 @@ function PlayerStage({
           disabled={isIdle}
           style={{
             width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-            background: isIdle ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.18)',
-            border: '1px solid rgba(255,255,255,0.15)',
+            background: isIdle ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.18)',
+            border: '1px solid rgba(255,255,255,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, color: isIdle ? 'rgba(255,255,255,0.2)' : 'white',
+            fontSize: 16, color: isIdle ? 'rgba(255,255,255,0.45)' : 'white',
             cursor: isIdle ? 'default' : 'pointer',
           }}
         >
@@ -117,8 +118,8 @@ function PlayerStage({
               onClick={() => isSound && onCycleTimer()}
               style={{
                 fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '4px 10px',
-                background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)',
-                color: isActive ? 'white' : 'rgba(255,255,255,0.3)',
+                background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.10)',
+                color: isActive ? 'white' : 'rgba(255,255,255,0.55)',
                 cursor: isSound ? 'pointer' : 'default',
                 border: 'none',
               }}
