@@ -486,19 +486,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       if (!cached) setTtsLoading(true);
       speak(para.text, storyLanguage, () => {
         if (paraIndex < totalSlides - 1) {
-          // Wait up to 3 s for the next scene's illustration before advancing.
-          // This creates a natural "page turn" pause and ensures the user sees
-          // each illustration rather than jumping to a blank scene.
-          const nextIdx = paraIndex + 1;
-          const deadline = Date.now() + 3000;
-          const tryAdvance = () => {
-            if (illustrationsRef.current[nextIdx] || Date.now() >= deadline || pausedRef.current) {
-              setTimeout(() => setParaIndex(p => p + 1), 300);
-            } else {
-              setTimeout(tryAdvance, 200);
-            }
-          };
-          tryAdvance();
+          // All scene illustrations are pre-loaded before narration starts.
+          setTimeout(() => setParaIndex(p => p + 1), 300);
         } else {
           setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
         }
@@ -796,21 +785,6 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           )}
         </AnimatePresence>
 
-        {/* "Painting scene" badge — pulses while the current scene's illustration is generating.
-            Disappears the moment illustrations[paraIndex] is set. */}
-        {showIllustrations && paraIndex >= 0 && !illustrations[paraIndex] && (
-          <motion.div
-            className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5
-                       bg-black/30 backdrop-blur-sm text-white text-xs font-nunito
-                       px-3 py-1.5 rounded-full pointer-events-none select-none"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: [0.6, 1, 0.6] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <span>✨</span>
-            <span>Painting scene…</span>
-          </motion.div>
-        )}
       </div>
 
       {/* ── Content pane — bottom 40% ── */}

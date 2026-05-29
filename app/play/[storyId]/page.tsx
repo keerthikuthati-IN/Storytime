@@ -125,7 +125,8 @@ export default function PlayPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<'story' | 'illustrations'>('story');
-  const [illusReady, setIllusReady] = useState(0);   // 0–3 illustrations pre-loaded
+  const [illusReady, setIllusReady] = useState(0);
+  const [illusTotal, setIllusTotal] = useState(0);
   const [initialIllustrations, setInitialIllustrations] = useState<Record<number, string>>({});
 
   const narrator = getNarratorById(narratorId) ?? getDefaultNarrator();
@@ -206,32 +207,33 @@ export default function PlayPage({ params }: PageProps) {
           });
         }
 
-        // ── Phase 2: portrait blocks loading screen; scenes fire early into IndexedDB ─
-        // All scene illustrations start loading immediately (fire-and-forget) so they
-        // have maximum head start before playback. Portrait is the gate — StoryPlayer
-        // only mounts once portrait is ready (or times out). SceneCard covers any gaps.
+        // ── Phase 2: block on ALL story scene illustrations ───────────────────
+        // Portrait fires in parallel but doesn't gate — SceneCard is fine for
+        // the ~5 s title intro. Every story scene (0–N) must be ready before
+        // narration starts so the user never sees emoji fallbacks mid-story.
         setLoadingPhase('illustrations');
         const sid = decodeURIComponent(storyId);
+        const sceneCount = storyData.paragraphs.length;
+        setIllusTotal(sceneCount);
 
-        // Fire ALL scene illustrations immediately — they write to IndexedDB in background.
-        // StoryPlayer's prefetchIllustration checks IndexedDB first, finding them instantly.
-        storyData.paragraphs.forEach((p, i) => {
-          fetchIllustrationDataUrl(sid, i, p.scene_description, p.mood, storyData.title); // no await
-        });
+        // Portrait races alongside scenes — collected at the end once scenes finish.
+        const portraitPromise = fetchIllustrationDataUrl(
+          sid, -1, storyData.title, 'magical', storyData.title, 15_000
+        ).catch(() => null);
 
-        // Portrait blocks — 25 s timeout (generous for Pollinations on mobile)
-        let portraitUrl = await fetchIllustrationDataUrl(
-          sid, -1, storyData.title, 'magical', storyData.title, 25_000,
-        );
-        // One retry if first attempt failed (Pollinations can be flaky)
-        if (!portraitUrl) {
-          portraitUrl = await fetchIllustrationDataUrl(
-            sid, -1, storyData.title, 'magical', storyData.title, 20_000,
-          );
-        }
-
+        // All story scenes in parallel — each has a 15 s timeout.
         const initialIllus: Record<number, string> = {};
-        if (portraitUrl) { initialIllus[-1] = portraitUrl; setIllusReady(1); }
+        await Promise.all(
+          storyData.paragraphs.map((p, i) =>
+            fetchIllustrationDataUrl(sid, i, p.scene_description, p.mood, storyData.title, 15_000)
+              .then(url => { if (url) initialIllus[i] = url; setIllusReady(prev => prev + 1); })
+              .catch(()  => { setIllusReady(prev => prev + 1); })
+          )
+        );
+
+        // Portrait ran in parallel — already resolved by now (or timed out).
+        const portraitUrl = await portraitPromise;
+        if (portraitUrl) initialIllus[-1] = portraitUrl;
 
         setInitialIllustrations(initialIllus);
         setStory(storyData);
@@ -298,9 +300,9 @@ export default function PlayPage({ params }: PageProps) {
                 exit={{ opacity: 0 }}
                 className="font-nunito text-gray-500 text-sm mb-6"
               >
-                {illusReady > 0
+                {illusReady >= illusTotal && illusTotal > 0
                   ? <span>Your story is ready <span className="font-semibold text-gray-700">✨</span></span>
-                  : 'Loading your story\'s character…'}
+                  : <span>Painting scenes… <span className="font-semibold text-gray-700">{illusReady} / {illusTotal || '…'}</span></span>}
               </motion.p>
             )}
           </AnimatePresence>
