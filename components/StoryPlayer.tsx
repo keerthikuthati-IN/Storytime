@@ -9,6 +9,7 @@ import type { Narrator } from '@/lib/narrators';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
 import { markPlayed, setCachedStory, getProfile, getAgeGroup } from '@/lib/storage';
+import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
 import { useTTS } from '@/lib/useTTS';
 
 const MUSIC_DUCK = 0.012; // nearly inaudible while TTS is speaking (~6% of normal)
@@ -134,13 +135,34 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const howlRef        = useRef<import('howler').Howl | null>(null);
   const currentMoodRef = useRef<StoryMood>('calm');
   const pausedRef      = useRef(false);
+  // In-memory TTS audio cache: paraIndex → base64. Keyed by -1 (intro) or 0+.
+  const audioCacheRef  = useRef<Map<number, string>>(new Map());
 
   const currentPara: StoryParagraph | null = paraIndex >= 0 ? currentStory.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';
   const totalSlides = currentStory.paragraphs.length;
 
   // ── TTS (Sarvam primary, Web Speech fallback) ──
-  const { speak, stop } = useTTS(setSpeaking);
+  const { speak, stop, prefetch } = useTTS(setSpeaking);
+
+  // ── TTS cache helpers ───────────────────────────
+  // Load audio for one paragraph: in-memory → IndexedDB → Sarvam API
+  const loadParaAudio = useCallback(async (paraIdx: number, text: string) => {
+    if (audioCacheRef.current.has(paraIdx)) return; // already warm
+    const key = ttsCacheKey(storyId, paraIdx);
+    // 1. Check IndexedDB (fast, local)
+    const persisted = await getTTSAudio(key);
+    if (persisted) {
+      audioCacheRef.current.set(paraIdx, persisted);
+      return;
+    }
+    // 2. Fetch from Sarvam API
+    const base64 = await prefetch(text, 'english');
+    if (base64) {
+      audioCacheRef.current.set(paraIdx, base64);
+      setTTSAudio(key, base64); // fire-and-forget persist
+    }
+  }, [storyId, prefetch]);
 
   // ── Music ──────────────────────────────────────
   const startMusic = useCallback(async (mood: StoryMood) => {
@@ -173,6 +195,46 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Pre-warm TTS on mount ───────────────────────
+  // For cached stories: load all audio from IndexedDB first (fast), then
+  // fetch any missing segments from Sarvam API in the background.
+  // For first-play: pre-warm intro so it's ready immediately.
+  useEffect(() => {
+    const allSegments = [
+      { idx: -1, text: currentStory.narrator_intro },
+      ...currentStory.paragraphs.map((p, i) => ({ idx: i, text: p.text })),
+    ];
+
+    async function prewarm() {
+      // Step 1: load everything we have from IndexedDB (parallel, fast)
+      await Promise.all(
+        allSegments.map(async ({ idx, text }) => {
+          if (audioCacheRef.current.has(idx)) return;
+          const key = ttsCacheKey(storyId, idx);
+          const hit = await getTTSAudio(key);
+          if (hit) audioCacheRef.current.set(idx, hit);
+        })
+      );
+
+      if (fromCache) {
+        // Step 2 (cached stories only): fill gaps from Sarvam sequentially
+        // to avoid hammering the API with 9 simultaneous requests
+        for (const { idx, text } of allSegments) {
+          if (!audioCacheRef.current.has(idx)) {
+            await loadParaAudio(idx, text);
+          }
+        }
+      } else {
+        // First play: just pre-warm intro + first paragraph
+        if (!audioCacheRef.current.has(-1))
+          loadParaAudio(-1, currentStory.narrator_intro);
+      }
+    }
+
+    prewarm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Clear loading indicator the moment TTS audio actually starts playing
   useEffect(() => {
     if (speaking) setTtsLoading(false);
@@ -195,21 +257,35 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     if (pausedRef.current) return;
 
     if (paraIndex === -1) {
-      setTtsLoading(true);
+      // Look-ahead: start loading para 0 in background while intro plays
+      if (currentStory.paragraphs[0])
+        loadParaAudio(0, currentStory.paragraphs[0].text);
+
+      const cached = audioCacheRef.current.get(-1);
+      if (!cached) setTtsLoading(true);
       speak(currentStory.narrator_intro, 'english', () => {
         setTimeout(() => setParaIndex(0), 400);
-      });
+      }, cached);
+
     } else if (paraIndex < totalSlides) {
       const para = currentStory.paragraphs[paraIndex];
       startMusic(para.mood as StoryMood);
-      setTtsLoading(true);
+
+      // Look-ahead: start loading next paragraph while this one plays
+      if (paraIndex < totalSlides - 1) {
+        const next = currentStory.paragraphs[paraIndex + 1];
+        if (next) loadParaAudio(paraIndex + 1, next.text);
+      }
+
+      const cached = audioCacheRef.current.get(paraIndex);
+      if (!cached) setTtsLoading(true);
       speak(para.text, 'english', () => {
         if (paraIndex < totalSlides - 1) {
           setTimeout(() => setParaIndex(p => p + 1), 600);
         } else {
           setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
         }
-      });
+      }, cached);
     }
 
     return () => { stop(); };
@@ -226,6 +302,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         howlRef.current.fade(0, MUSIC_DUCK, 600);
       }
       const text = paraIndex === -1 ? currentStory.narrator_intro : currentStory.paragraphs[paraIndex]?.text ?? '';
+      const cached = audioCacheRef.current.get(paraIndex);
       speak(text, 'english', () => {
         if (paraIndex === -1) {
           setTimeout(() => setParaIndex(0), 400);
@@ -234,7 +311,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         } else {
           setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
         }
-      });
+      }, cached);
     } else {
       pausedRef.current = true;
       stop();
