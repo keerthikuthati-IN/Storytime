@@ -10,6 +10,7 @@ import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
 import { markPlayed, setCachedStory, getProfile, getAgeGroup } from '@/lib/storage';
 import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
+import { illustrationKey, getIllustration, setIllustration, deleteIllustrationsForStory } from '@/lib/illustrationCache';
 import { useTTS } from '@/lib/useTTS';
 
 const MUSIC_DUCK = 0.012; // nearly inaudible while TTS is speaking (~6% of normal)
@@ -131,12 +132,19 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const [ttsLoading, setTtsLoading]       = useState(false);
   const [regenerating, setRegenerating]   = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  const [illustrations, setIllustrations] = useState<Record<number, string>>({});
+  const [showIllustrations, setShowIllustrations] = useState(() => {
+    const p = getProfile();
+    return p ? getAgeGroup(p.age) !== 'newborn' : true;
+  });
 
   const howlRef        = useRef<import('howler').Howl | null>(null);
   const currentMoodRef = useRef<StoryMood>('calm');
   const pausedRef      = useRef(false);
   // In-memory TTS audio cache: paraIndex → base64. Keyed by -1 (intro) or 0+.
-  const audioCacheRef  = useRef<Map<number, string>>(new Map());
+  const audioCacheRef          = useRef<Map<number, string>>(new Map());
+  // Tracks which paragraph illustrations have been requested (prevents duplicate fetches)
+  const illustrationFetchedRef = useRef<Set<number>>(new Set());
 
   const currentPara: StoryParagraph | null = paraIndex >= 0 ? currentStory.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';
@@ -163,6 +171,54 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       setTTSAudio(key, base64); // fire-and-forget persist
     }
   }, [storyId, prefetch]);
+
+  // ── Illustration prefetch ──────────────────────
+  // Fire-and-forget: fetches illustration for a paragraph, stores in IndexedDB,
+  // and adds to component state. Never blocks narration.
+  const prefetchIllustration = useCallback(async (
+    paraIdx: number,
+    sceneDesc: string,
+    mood: string,
+  ) => {
+    if (!sceneDesc) return;
+    if (illustrationFetchedRef.current.has(paraIdx)) return;
+    illustrationFetchedRef.current.add(paraIdx);
+
+    const key = illustrationKey(storyId, paraIdx);
+
+    // 1. Check IndexedDB (instant, cached from previous play)
+    const cached = await getIllustration(key);
+    if (cached) {
+      setIllustrations(prev => ({ ...prev, [paraIdx]: cached }));
+      return;
+    }
+
+    // 2. Ask the server to build a child-safe Pollinations URL
+    try {
+      const res = await fetch('/api/stories/illustrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scene_description: sceneDesc, mood }),
+      });
+      const { imageUrl } = await res.json() as { imageUrl?: string };
+      if (!imageUrl) return;
+
+      // 3. Fetch the actual image, convert to data URL, cache in IndexedDB
+      const imgRes = await fetch(imageUrl);
+      if (!imgRes.ok) return;
+      const blob = await imgRes.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror   = reject;
+        reader.readAsDataURL(blob);
+      });
+      setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
+      setIllustration(key, dataUrl); // persist for instant replay
+    } catch {
+      // Silently fail — mood gradient shows as fallback
+    }
+  }, [storyId]);
 
   // ── Music ──────────────────────────────────────
   const startMusic = useCallback(async (mood: StoryMood) => {
@@ -232,6 +288,12 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     }
 
     prewarm();
+
+    // Pre-fetch illustration for first paragraph during loading phase
+    if (currentStory.paragraphs[0]) {
+      const p0 = currentStory.paragraphs[0];
+      prefetchIllustration(0, p0.scene_description, p0.mood);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -258,8 +320,10 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     if (paraIndex === -1) {
       // Look-ahead: start loading para 0 in background while intro plays
-      if (currentStory.paragraphs[0])
+      if (currentStory.paragraphs[0]) {
         loadParaAudio(0, currentStory.paragraphs[0].text);
+        prefetchIllustration(0, currentStory.paragraphs[0].scene_description, currentStory.paragraphs[0].mood);
+      }
 
       const cached = audioCacheRef.current.get(-1);
       if (!cached) setTtsLoading(true);
@@ -271,11 +335,16 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       const para = currentStory.paragraphs[paraIndex];
       startMusic(para.mood as StoryMood);
 
-      // Look-ahead: start loading next paragraph while this one plays
+      // Look-ahead: start loading next paragraph + illustration while this one plays
       if (paraIndex < totalSlides - 1) {
         const next = currentStory.paragraphs[paraIndex + 1];
-        if (next) loadParaAudio(paraIndex + 1, next.text);
+        if (next) {
+          loadParaAudio(paraIndex + 1, next.text);
+          prefetchIllustration(paraIndex + 1, next.scene_description, next.mood);
+        }
       }
+      // Ensure current paragraph illustration is fetched (covers edge cases)
+      prefetchIllustration(paraIndex, para.scene_description, para.mood);
 
       const cached = audioCacheRef.current.get(paraIndex);
       if (!cached) setTtsLoading(true);
@@ -375,6 +444,10 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         narratorId: storyMeta.narratorId,
         cachedAt: Date.now(),
       });
+      // Clear old illustrations — new story has new scenes
+      deleteIllustrationsForStory(storyId, currentStory.paragraphs.length);
+      illustrationFetchedRef.current.clear();
+      setIllustrations({});
       setCurrentStory(fresh);
       setParaIndex(-1);
     } catch {
@@ -489,6 +562,42 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         </motion.div>
       </AnimatePresence>
 
+      {/* Full-screen illustration — picture book mode (z-5, between bg and particles) */}
+      <AnimatePresence>
+        {showIllustrations && illustrations[paraIndex] && (
+          <motion.div
+            key={`illus-${paraIndex}`}
+            className="absolute inset-0"
+            style={{ zIndex: 5 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${illustrations[paraIndex]})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center center',
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Gradient scrim — darkens bottom third for text readability (z-7) */}
+      {showIllustrations && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            zIndex: 7,
+            background:
+              'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 40%, transparent 70%)',
+          }}
+        />
+      )}
+
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-10 pb-2">
         <button
@@ -497,15 +606,25 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         >
           ← Exit
         </button>
-        {paraIndex >= 0 && (
-          <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm">
-            <ProgressBar current={paraIndex} total={totalSlides} />
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => setShowIllustrations(v => !v)}
+            className="w-8 h-8 rounded-full bg-black/25 backdrop-blur-sm flex items-center justify-center text-sm"
+            title={showIllustrations ? 'Hide illustrations' : 'Show illustrations'}
+          >
+            {showIllustrations ? '🖼️' : '👁️'}
+          </motion.button>
+          {paraIndex >= 0 && (
+            <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm">
+              <ProgressBar current={paraIndex} total={totalSlides} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Story text — centrepiece */}
-      <div className="relative z-10 flex-1 flex flex-col justify-center px-5 pt-24 pb-2">
+      {/* Story text — centrepiece (z-[25] keeps it above particles + scrim) */}
+      <div className="relative flex-1 flex flex-col justify-center px-5 pt-24 pb-2" style={{ zIndex: 25 }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={paraIndex}
@@ -513,7 +632,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.5 }}
-            className="bg-white/80 backdrop-blur-md rounded-3xl px-7 py-8 shadow-soft"
+            className={`${showIllustrations ? 'bg-white/92' : 'bg-white/80'} backdrop-blur-md rounded-3xl px-7 py-8 shadow-soft`}
           >
             {paraIndex === -1 ? (
               <div className="text-center">

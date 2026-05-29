@@ -105,8 +105,15 @@ export function deleteSavedStory(storyId: string): void {
     localStorage.setItem('storytime_liked_objects', JSON.stringify(objects.filter((s: { id: string }) => s.id !== storyId)));
   } catch { /* ignore */ }
 
-  // Also evict the cached story content
+  // Also evict the cached story content and illustrations
+  const cachedForDelete = getCachedStory(storyId);
   deleteCachedStory(storyId);
+  if (typeof window !== 'undefined') {
+    // Lazy import to avoid circular dependency — fire-and-forget
+    import('./illustrationCache').then(({ deleteIllustrationsForStory }) => {
+      deleteIllustrationsForStory(storyId, cachedForDelete?.story.paragraphs.length ?? 15);
+    }).catch(() => { /* ignore */ });
+  }
 }
 
 // ── Story content cache ────────────────────────────────────────────────────
