@@ -7,7 +7,7 @@ import type { GeneratedStory, StoryParagraph } from '@/lib/claude';
 import type { Narrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
 
-const MUSIC_DUCK = MUSIC_VOLUME * 0.18; // volume while TTS is speaking
+const MUSIC_DUCK = 0.012; // nearly inaudible while TTS is speaking (~6% of normal)
 import { markPlayed } from '@/lib/storage';
 import { useTTS } from '@/lib/useTTS';
 
@@ -115,11 +115,12 @@ function MoodBackground({ mood }: { mood: StoryMood }) {
 }
 
 export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPlayerProps) {
-  const [paraIndex, setParaIndex] = useState(-1);
-  const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused]     = useState(false);
-  const [musicOn, setMusicOn]   = useState(true);
-  const [ended, setEnded]       = useState(false);
+  const [paraIndex, setParaIndex]   = useState(-1);
+  const [speaking, setSpeaking]     = useState(false);
+  const [paused, setPaused]         = useState(false);
+  const [musicOn, setMusicOn]       = useState(true);
+  const [ended, setEnded]           = useState(false);
+  const [ttsLoading, setTtsLoading] = useState(false);
 
   const howlRef        = useRef<import('howler').Howl | null>(null);
   const currentMoodRef = useRef<StoryMood>('calm');
@@ -153,8 +154,8 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
 
   function stopMusic() {
     if (howlRef.current) {
-      howlRef.current.fade(MUSIC_VOLUME, 0, 600);
-      setTimeout(() => { howlRef.current?.unload(); howlRef.current = null; }, 700);
+      howlRef.current.fade(howlRef.current.volume(), 0, 500);
+      setTimeout(() => { howlRef.current?.unload(); howlRef.current = null; }, 600);
     }
   }
 
@@ -163,12 +164,22 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Duck music while TTS is speaking; restore when silent or paused
+  // Clear loading indicator the moment TTS audio actually starts playing
+  useEffect(() => {
+    if (speaking) setTtsLoading(false);
+  }, [speaking]);
+
+  // Duck music while TTS is speaking.
+  // IMPORTANT: early-return when paused — pause handler owns the fade-to-0,
+  // this effect must not fight it by restoring volume.
   useEffect(() => {
     const howl = howlRef.current;
-    if (!howl || !musicOn) return;
-    const target = (speaking && !paused) ? MUSIC_DUCK : MUSIC_VOLUME;
-    howl.fade(howl.volume(), target, 400);
+    if (!howl || !musicOn || paused) return;
+    if (speaking) {
+      howl.fade(howl.volume(), MUSIC_DUCK, 300);   // quick duck when voice starts
+    } else {
+      howl.fade(howl.volume(), MUSIC_VOLUME, 900); // slow restore between sentences
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speaking, paused]);
 
@@ -177,12 +188,14 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
     if (pausedRef.current) return;
 
     if (paraIndex === -1) {
+      setTtsLoading(true);
       speak(story.narrator_intro, 'english', () => {
         setTimeout(() => setParaIndex(0), 400);
       });
     } else if (paraIndex < totalSlides) {
       const para = story.paragraphs[paraIndex];
       startMusic(para.mood as StoryMood);
+      setTtsLoading(true);
       speak(para.text, 'english', () => {
         if (paraIndex < totalSlides - 1) {
           setTimeout(() => setParaIndex(p => p + 1), 600);
@@ -328,19 +341,35 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
               </p>
             )}
 
-            {/* Nani identity pill — subtle, inside the card */}
-            <div className="flex items-center justify-center gap-1.5 mt-6">
-              {speaking && !paused && (
-                <motion.div className="flex gap-0.5 items-end h-3 mr-1">
-                  {[0,1,2].map(i => (
-                    <motion.div key={i} className="w-0.5 bg-coral rounded-full"
-                      animate={{ height: ['30%','100%','30%'] }}
-                      transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.12 }} />
+            {/* Nani identity pill + audio state indicator */}
+            <div className="flex flex-col items-center gap-2 mt-6">
+              <div className="flex items-center gap-1.5">
+                {speaking && !paused && (
+                  <motion.div className="flex gap-0.5 items-end h-3 mr-1">
+                    {[0,1,2].map(i => (
+                      <motion.div key={i} className="w-0.5 bg-coral rounded-full"
+                        animate={{ height: ['30%','100%','30%'] }}
+                        transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.12 }} />
+                    ))}
+                  </motion.div>
+                )}
+                <span className="text-base">{narrator.emoji}</span>
+                <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
+              </div>
+
+              {/* Audio loading dots — visible during API fetch gap */}
+              {ttsLoading && !speaking && !paused && (
+                <div className="flex gap-1.5">
+                  {[0, 0.18, 0.36].map(d => (
+                    <motion.div
+                      key={d}
+                      className="w-1.5 h-1.5 rounded-full bg-gray-300"
+                      animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                      transition={{ duration: 0.65, repeat: Infinity, delay: d }}
+                    />
                   ))}
-                </motion.div>
+                </div>
               )}
-              <span className="text-base">{narrator.emoji}</span>
-              <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
             </div>
           </motion.div>
         </AnimatePresence>
