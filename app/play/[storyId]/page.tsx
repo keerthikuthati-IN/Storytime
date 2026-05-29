@@ -4,7 +4,6 @@ import { use, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import StoryPlayer from '@/components/StoryPlayer';
-import NanaLunaAvatar from '@/components/NanaLunaAvatar';
 import { generateStory, type GeneratedStory } from '@/lib/claude';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
@@ -189,25 +188,23 @@ export default function PlayPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="h-screen relative overflow-hidden"
-        style={{ background: '#C8E8F4' }}
-      >
+      <div className="h-screen relative overflow-hidden fun-bg">
         <LoadingParticles narratorId={narratorId} />
 
-        {/* Nani — centered, background matches artboard so edges are invisible */}
+        {/* Nani emoji — always visible, no Rive dependency */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', stiffness: 180, damping: 18 }}
-          className="absolute inset-0 flex items-start justify-center"
-          style={{ paddingTop: 0 }}
+          className="absolute inset-0 flex items-center justify-center"
         >
-          <NanaLunaAvatar
-            narrator={narrator}
-            mood={loadingConfig.mood}
-            speaking={false}
-            size={500}
-          />
+          <motion.div
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ fontSize: 120, filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.12))' }}
+          >
+            🧓
+          </motion.div>
         </motion.div>
 
         {/* Text overlaid at the bottom */}
