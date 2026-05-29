@@ -151,7 +151,7 @@ export default function ProfilePage() {
                 onClick={() => setGender(g.value)}
                 className={`flex-1 py-4 rounded-2xl font-nunito font-bold flex flex-col items-center gap-1.5 transition-all ${
                   gender === g.value
-                    ? 'bg-violet text-white shadow-glow-violet'
+                    ? 'bg-coral text-white shadow-glow'
                     : 'bg-white/80 text-gray-600'
                 }`}
               >
@@ -179,7 +179,7 @@ export default function ProfilePage() {
                   onClick={() => { toggleCategory(cat.label); setErrors(p => ({ ...p, categories: undefined })); }}
                   className={`py-3 px-3 rounded-2xl font-nunito font-bold text-sm flex items-center gap-2 transition-all ${
                     active
-                      ? 'bg-tangerine text-white shadow-glow-tangerine'
+                      ? 'bg-coral text-white shadow-glow'
                       : 'bg-white/80 text-gray-600'
                   }`}
                 >
