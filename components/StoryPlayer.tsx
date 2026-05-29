@@ -151,10 +151,14 @@ const SCENE_GRADIENTS: Record<StoryMood, string[]> = {
   tense:    ['linear-gradient(135deg,#E8EAF6,#EDE8F8)','linear-gradient(160deg,#EDE8F8,#F3F4F9)','linear-gradient(120deg,#F3F4F9,#E8EAF6)'],
 };
 
-function SceneCard({ mood, category, paraIndex }: { mood: StoryMood; category: string; paraIndex: number }) {
+function SceneCard({ mood, category, paraIndex, sceneEmojis }: {
+  mood: StoryMood; category: string; paraIndex: number;
+  sceneEmojis?: import('@/lib/claude').SceneEmojis;
+}) {
   const variant  = Math.abs(paraIndex + 1) % 3; // +1 so intro (−1) → variant 0
   const gradient = (SCENE_GRADIENTS[mood] ?? SCENE_GRADIENTS.calm)[variant];
-  const emojis   = SCENE_EMOJIS[category] ?? SCENE_EMOJIS['Adventure'];
+  // Prefer story-specific emojis returned by Claude; fall back to category map
+  const emojis   = sceneEmojis ?? SCENE_EMOJIS[category] ?? SCENE_EMOJIS['Adventure'];
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden select-none"
@@ -413,12 +417,12 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Pre-fetch intro portrait immediately, then stagger scene illustrations 1500 ms apart.
-    // 1500 ms spacing keeps only 1–2 Pollinations requests in-flight at once on mobile,
-    // preventing connection-pool exhaustion. All fire within the ~15 s intro TTS window.
+    // Scenes already have a head start from play-page Phase 2 fire-and-forget.
+    // Use 300 ms stagger here — fast enough that all fire within 1.5 s of mount,
+    // spaced enough to not overwhelm Pollinations. No-ops for scenes already in IndexedDB.
     prefetchIllustration(-1, '', 'magical', currentStory.title);
     currentStory.paragraphs.forEach((p, i) => {
-      setTimeout(() => prefetchIllustration(i, p.scene_description, p.mood), i * 1500);
+      setTimeout(() => prefetchIllustration(i, p.scene_description, p.mood), i * 300);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -455,10 +459,13 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       }
 
       const cached = audioCacheRef.current.get(-1);
-      if (!cached) setTtsLoading(true);
-      speak(currentStory.narrator_intro, storyLanguage, () => {
-        setTimeout(() => setParaIndex(0), 400);
-      }, cached);
+      // 500 ms pause — user sees the portrait/SceneCard before narration begins
+      setTimeout(() => {
+        if (!cached) setTtsLoading(true);
+        speak(currentStory.narrator_intro, storyLanguage, () => {
+          setTimeout(() => setParaIndex(0), 400);
+        }, cached);
+      }, 500);
 
     } else if (paraIndex < totalSlides) {
       const para = currentStory.paragraphs[paraIndex];
@@ -742,10 +749,10 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
-        {/* Scene Card — instant base layer, always distinct per scene.
-            Visible until AI illustration arrives, then crossfades behind it.
-            Key changes on every paraIndex so the card always updates. */}
-        <AnimatePresence mode="wait">
+        {/* SceneCard — always-on base layer, mode="sync" ensures never blank between scenes.
+            Old card fades out while new one fades in simultaneously (no empty gap).
+            AI illustration at zIndex 5 covers it when Pollinations delivers. */}
+        <AnimatePresence mode="sync">
           <motion.div
             key={`card-${paraIndex}`}
             className="absolute inset-0"
@@ -753,13 +760,18 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.4 }}
           >
-            <SceneCard mood={currentMood} category={storyMeta.category} paraIndex={paraIndex} />
+            <SceneCard
+              mood={currentMood}
+              category={storyMeta.category}
+              paraIndex={paraIndex}
+              sceneEmojis={currentStory.scene_emojis}
+            />
           </motion.div>
         </AnimatePresence>
 
-        {/* AI Illustration — crossfades over SceneCard when Pollinations delivers it.
+        {/* Pollinations AI illustration — zIndex 5, crossfades OVER SceneCard when ready.
             Key changes only when displayParaIdx changes (max 1 step back fallback). */}
         <AnimatePresence>
           {showIllustrations && displayIllus && (

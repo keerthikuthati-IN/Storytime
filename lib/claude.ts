@@ -23,11 +23,18 @@ export interface StoryParagraph {
   emotion?: NarratorEmotion;
 }
 
+export interface SceneEmojis {
+  hero:   string;    // main character emoji specific to this story title
+  world:  string[];  // 3 setting/environment emojis
+  accent: string[];  // 3 detail/object/action emojis
+}
+
 export interface GeneratedStory {
   title: string;
   narrator_intro: string;
   paragraphs: StoryParagraph[];
   language?: 'english' | 'telugu';
+  scene_emojis?: SceneEmojis;  // title-specific emojis for SceneCard fallback
 }
 
 export async function fetchStoryRecommendations(

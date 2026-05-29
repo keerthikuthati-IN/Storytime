@@ -206,30 +206,32 @@ export default function PlayPage({ params }: PageProps) {
           });
         }
 
-        // ── Phase 2: pre-fetch portrait + first 2 scenes before playback ─
-        // Runs during the loading screen so StoryPlayer starts with illustrations ready.
-        // For replays, IndexedDB hits make this near-instant.
+        // ── Phase 2: portrait blocks loading screen; scenes fire early into IndexedDB ─
+        // All scene illustrations start loading immediately (fire-and-forget) so they
+        // have maximum head start before playback. Portrait is the gate — StoryPlayer
+        // only mounts once portrait is ready (or times out). SceneCard covers any gaps.
         setLoadingPhase('illustrations');
         const sid = decodeURIComponent(storyId);
-        const preloadTargets = [
-          { paraIdx: -1,  desc: storyData.title,                          mood: 'magical' },
-          ...(storyData.paragraphs.slice(0, 2).map((p, i) => ({
-            paraIdx: i, desc: p.scene_description, mood: p.mood,
-          }))),
-        ];
+
+        // Fire ALL scene illustrations immediately — they write to IndexedDB in background.
+        // StoryPlayer's prefetchIllustration checks IndexedDB first, finding them instantly.
+        storyData.paragraphs.forEach((p, i) => {
+          fetchIllustrationDataUrl(sid, i, p.scene_description, p.mood, storyData.title); // no await
+        });
+
+        // Portrait blocks — 25 s timeout (generous for Pollinations on mobile)
+        let portraitUrl = await fetchIllustrationDataUrl(
+          sid, -1, storyData.title, 'magical', storyData.title, 25_000,
+        );
+        // One retry if first attempt failed (Pollinations can be flaky)
+        if (!portraitUrl) {
+          portraitUrl = await fetchIllustrationDataUrl(
+            sid, -1, storyData.title, 'magical', storyData.title, 20_000,
+          );
+        }
 
         const initialIllus: Record<number, string> = {};
-        await Promise.allSettled(
-          preloadTargets.map(async ({ paraIdx, desc, mood: m }) => {
-            const dataUrl = await fetchIllustrationDataUrl(
-              sid, paraIdx, desc, m, storyData.title,
-            );
-            if (dataUrl) {
-              initialIllus[paraIdx] = dataUrl;
-              setIllusReady(prev => prev + 1);
-            }
-          })
-        );
+        if (portraitUrl) { initialIllus[-1] = portraitUrl; setIllusReady(1); }
 
         setInitialIllustrations(initialIllus);
         setStory(storyData);
@@ -296,8 +298,9 @@ export default function PlayPage({ params }: PageProps) {
                 exit={{ opacity: 0 }}
                 className="font-nunito text-gray-500 text-sm mb-6"
               >
-                Painting your scenes…{' '}
-                <span className="font-semibold text-gray-700">{illusReady} of 3 ready ✨</span>
+                {illusReady > 0
+                  ? <span>Your story is ready <span className="font-semibold text-gray-700">✨</span></span>
+                  : 'Loading your story\'s character…'}
               </motion.p>
             )}
           </AnimatePresence>

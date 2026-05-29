@@ -33,11 +33,18 @@ ${ageInstruction}
 
 Stay true to the beloved original story that parents and children know and love. Use the classic characters, key plot moments, and satisfying ending. Each paragraph should feel like one scene read aloud softly by a loving Indian grandmother.
 
+Also return scene_emojis with emojis a child aged 0-6 immediately recognises as belonging to THIS specific story title — not generic category emojis.
+
 Return JSON in this exact shape:
 {
   "title": "Story Title",
   "narrator_intro": "One warm, inviting sentence Nani says before the story begins — gentle, grandmother-like, may use 'kanna' or 'bangaram' naturally, loving and welcoming.",
   "language": "${language}",
+  "scene_emojis": {
+    "hero": "one emoji for the main character of THIS story (e.g. 🦚 for Krishna, 👸 for Cinderella, 🐷 for Three Little Pigs)",
+    "world": ["setting emoji 1", "setting emoji 2", "setting emoji 3"],
+    "accent": ["key object emoji", "key action emoji", "mood/feeling emoji"]
+  },
   "paragraphs": [
     {
       "text": "3-4 short, simple sentences of story content. Rich sensory language. Easy words.",
@@ -55,7 +62,7 @@ End with a gentle, comforting conclusion that helps a child drift off to sleep. 
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      max_tokens: 3200,
       system: `You are a master children's storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. ${isTelugu ? 'Nani naturally uses warm South Indian endearments like "kanna" and "bangaram" — use them sparingly (once or twice per story) at emotionally warm moments, never in every sentence.' : 'Nani uses gentle English endearments like "little one", "sweetheart", or "dearest" — use them sparingly (once or twice per story) at emotionally warm moments, never in every sentence. Do NOT use Telugu or South Indian words like kanna or bangaram in English stories.'} For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. ${isTelugu ? 'You are fluent in Telugu. When asked to write in Telugu, write beautiful, simple Telugu in Telugu script suitable for young children. Keep sentences short and warm.' : ''} CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.`,
       messages: [{ role: 'user', content: userPrompt }],
     });
