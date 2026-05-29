@@ -29,7 +29,7 @@ Stay true to the beloved original story that parents and children know and love.
 Return JSON in this exact shape:
 {
   "title": "Story Title",
-  "narrator_intro": "One warm, inviting sentence Nani says before the story begins — gentle, grandmother-like, using 'kanna' or 'bangaram' naturally.",
+  "narrator_intro": "One warm, inviting sentence Nani says before the story begins — gentle, grandmother-like, loving and welcoming.",
   "paragraphs": [
     {
       "text": "3-4 short, simple sentences of story content. Rich sensory language. Easy words.",

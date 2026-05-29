@@ -643,7 +643,7 @@ function EndScreen({
       </motion.h1>
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
         className="font-nunito text-gray-400 text-base mb-10 relative z-10">
-        Sweet dreams, kanna 🌙
+        Sweet dreams, little one 🌙
       </motion.p>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
         className="w-full space-y-3 relative z-10">

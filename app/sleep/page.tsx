@@ -201,7 +201,7 @@ export default function SleepPage() {
           <span className="text-gray-800"> Whispers 🌙</span>
         </h1>
         <p className="font-nunito text-gray-400 text-sm mt-0.5 font-semibold">
-          Nani is here — sleep now, kanna
+          Nani is here — time to rest, little one
         </p>
       </div>
 
