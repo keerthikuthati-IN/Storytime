@@ -31,17 +31,15 @@ function hashCode(str: string): number {
 
 export async function POST(req: Request) {
   try {
-    const { scene_description, mood = 'calm' } = await req.json();
+    const { scene_description, mood = 'calm', title } = await req.json();
 
-    if (!scene_description) {
-      return NextResponse.json({ error: 'scene_description required' }, { status: 400 });
+    if (!scene_description && !title) {
+      return NextResponse.json({ error: 'scene_description or title required' }, { status: 400 });
     }
 
     const moodHint = MOOD_HINT[mood] ?? MOOD_HINT.calm;
 
     // ── Safety wrapper — non-negotiable, always prepended ──────────────────
-    // No matter what the story contains, these constraints ensure every
-    // generated image is soothing and safe for children aged 0–6.
     const safePrefix = [
       "children's picture book illustration",
       'soft soothing watercolor painting',
@@ -56,8 +54,29 @@ export async function POST(req: Request) {
       'no weapons no monsters no nightmares no frightening imagery',
     ].join(', ');
 
-    const prompt = `${safePrefix}, ${moodHint}, ${scene_description}`;
-    const seed   = hashCode(scene_description);
+    let contentPrompt: string;
+    let seed: number;
+
+    if (title && !scene_description) {
+      // ── Portrait mode — iconic character for the intro screen ──────────
+      // Generates the widely-recognised look of the story's protagonist
+      // (Aladdin in blue vest + fez, Cinderella in blue gown, etc.)
+      contentPrompt = [
+        `iconic character portrait from the beloved children's story "${title}"`,
+        'classic widely-recognizable appearance',
+        'friendly and warm expression',
+        'full body or bust portrait centered in frame',
+        'magical storybook setting',
+        'golden sparkles, ethereal glow',
+      ].join(', ');
+      seed = hashCode(title + '_portrait');
+    } else {
+      // ── Scene mode — story moment from scene_description ───────────────
+      contentPrompt = `${moodHint}, ${scene_description}`;
+      seed = hashCode(scene_description);
+    }
+
+    const prompt = `${safePrefix}, ${contentPrompt}`;
 
     const imageUrl =
       `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +

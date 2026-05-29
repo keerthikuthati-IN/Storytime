@@ -61,9 +61,10 @@ export async function deleteIllustrationsForStory(
   if (typeof window === 'undefined') return;
   try {
     const db   = await openDB();
-    const keys = Array.from({ length: totalParagraphs }, (_, i) =>
-      illustrationKey(storyId, i),
-    );
+    const keys = [
+      illustrationKey(storyId, -1), // intro portrait
+      ...Array.from({ length: totalParagraphs }, (_, i) => illustrationKey(storyId, i)),
+    ];
     const tx    = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     keys.forEach(k => store.delete(k));

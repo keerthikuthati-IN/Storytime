@@ -179,8 +179,9 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     paraIdx: number,
     sceneDesc: string,
     mood: string,
+    title?: string, // only for intro portrait (paraIdx === -1)
   ) => {
-    if (!sceneDesc) return;
+    if (!sceneDesc && !title) return;
     if (illustrationFetchedRef.current.has(paraIdx)) return;
     illustrationFetchedRef.current.add(paraIdx);
 
@@ -195,10 +196,13 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     // 2. Ask the server to build a child-safe Pollinations URL
     try {
+      const body = title && !sceneDesc
+        ? { title, mood }                                     // portrait mode
+        : { scene_description: sceneDesc, mood };             // scene mode
       const res = await fetch('/api/stories/illustrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scene_description: sceneDesc, mood }),
+        body: JSON.stringify(body),
       });
       const { imageUrl } = await res.json() as { imageUrl?: string };
       if (!imageUrl) return;
@@ -289,7 +293,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Pre-fetch illustration for first paragraph during loading phase
+    // Pre-fetch intro character portrait + first paragraph illustration
+    prefetchIllustration(-1, '', 'magical', currentStory.title);
     if (currentStory.paragraphs[0]) {
       const p0 = currentStory.paragraphs[0];
       prefetchIllustration(0, p0.scene_description, p0.mood);
@@ -534,72 +539,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   return (
     <div className="relative flex flex-col h-screen overflow-hidden">
 
-      {/* Mood background */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentMood}
-          className="absolute inset-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 1.2 }}
-        >
-          <MoodBackground mood={currentMood} />
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Mood-specific floating emojis */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentMood}
-          className="absolute inset-0 z-20 pointer-events-none"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 1.5 }}
-        >
-          <MoodParticles mood={currentMood} />
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Full-screen illustration — picture book mode (z-5, between bg and particles) */}
-      <AnimatePresence>
-        {showIllustrations && illustrations[paraIndex] && (
-          <motion.div
-            key={`illus-${paraIndex}`}
-            className="absolute inset-0"
-            style={{ zIndex: 5 }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: `url(${illustrations[paraIndex]})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center center',
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Gradient scrim — darkens bottom third for text readability (z-7) */}
-      {showIllustrations && (
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            zIndex: 7,
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 40%, transparent 70%)',
-          }}
-        />
-      )}
-
-      {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-10 pb-2">
+      {/* Top bar — absolute over both panes */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-10 pb-2">
         <button
           onClick={handleExit}
           className="text-gray-600 font-nunito text-sm bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm"
@@ -610,7 +551,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={() => setShowIllustrations(v => !v)}
-            className="w-8 h-8 rounded-full bg-black/25 backdrop-blur-sm flex items-center justify-center text-sm"
+            className="w-8 h-8 rounded-full bg-white/60 backdrop-blur-sm flex items-center justify-center text-sm shadow-sm"
             title={showIllustrations ? 'Hide illustrations' : 'Show illustrations'}
           >
             {showIllustrations ? '🖼️' : '👁️'}
@@ -623,90 +564,149 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         </div>
       </div>
 
-      {/* Story text — centrepiece (z-[25] keeps it above particles + scrim) */}
-      <div className="relative flex-1 flex flex-col justify-center px-5 pt-24 pb-2" style={{ zIndex: 25 }}>
+      {/* ── Illustration pane — top 60% ── */}
+      <div className="relative overflow-hidden" style={{ flex: 6 }}>
+
+        {/* Mood background */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={paraIndex}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.5 }}
-            className={`${showIllustrations ? 'bg-white/92' : 'bg-white/80'} backdrop-blur-md rounded-3xl px-7 py-8 shadow-soft`}
+            key={currentMood}
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2 }}
           >
-            {paraIndex === -1 ? (
-              <div className="text-center">
-                <p className="font-baloo font-bold text-2xl text-gray-800 mb-3 leading-snug">
-                  {currentStory.title}
-                </p>
-                <p className="font-nunito text-gray-600 text-lg leading-relaxed italic">
-                  {currentStory.narrator_intro}
-                </p>
-              </div>
-            ) : (
-              <p className="font-nunito text-gray-700 text-lg leading-relaxed text-center">
-                {currentPara?.text}
-              </p>
-            )}
-
-            {/* Nani identity pill + audio state indicator */}
-            <div className="flex flex-col items-center gap-2 mt-6">
-              <div className="flex items-center gap-1.5">
-                {speaking && !paused && (
-                  <motion.div className="flex gap-0.5 items-end h-3 mr-1">
-                    {[0,1,2].map(i => (
-                      <motion.div key={i} className="w-0.5 bg-coral rounded-full"
-                        animate={{ height: ['30%','100%','30%'] }}
-                        transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.12 }} />
-                    ))}
-                  </motion.div>
-                )}
-                <span className="text-base">{narrator.emoji}</span>
-                <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
-              </div>
-
-              {/* Audio loading dots — visible during API fetch gap */}
-              {ttsLoading && !speaking && !paused && (
-                <div className="flex gap-1.5">
-                  {[0, 0.18, 0.36].map(d => (
-                    <motion.div
-                      key={d}
-                      className="w-1.5 h-1.5 rounded-full bg-gray-300"
-                      animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
-                      transition={{ duration: 0.65, repeat: Infinity, delay: d }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            <MoodBackground mood={currentMood} />
           </motion.div>
+        </AnimatePresence>
+
+        {/* Mood-specific floating emojis */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentMood}
+            className="absolute inset-0 z-10 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5 }}
+          >
+            <MoodParticles mood={currentMood} />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Illustration — crossfades on each paragraph; -1 = character portrait */}
+        <AnimatePresence>
+          {showIllustrations && illustrations[paraIndex] && (
+            <motion.div
+              key={`illus-${paraIndex}`}
+              className="absolute inset-0"
+              style={{ zIndex: 5 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: `url(${illustrations[paraIndex]})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center top',
+                }}
+              />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
-      {/* Controls */}
-      <div className="relative z-30 pb-8 pt-3 px-6">
-        <div className="flex items-center justify-between">
-          <motion.button whileTap={{ scale: 0.88 }} onClick={goPrev} disabled={paraIndex <= -1}
-            className="w-12 h-12 rounded-2xl bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl disabled:opacity-30 shadow-sm">
-            ⏮
-          </motion.button>
+      {/* ── Content pane — bottom 40% ── */}
+      <div className="relative flex flex-col bg-white" style={{ flex: 4 }}>
 
-          <motion.button whileTap={{ scale: 0.88 }} onClick={togglePause}
-            className="w-16 h-16 rounded-full bg-coral flex items-center justify-center text-2xl text-white shadow-glow">
-            {paused ? '▶' : '⏸'}
-          </motion.button>
+        {/* Story text */}
+        <div className="flex-1 flex flex-col justify-center px-5 py-3">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={paraIndex}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.4 }}
+            >
+              {paraIndex === -1 ? (
+                <div className="text-center">
+                  <p className="font-baloo font-bold text-xl text-gray-800 mb-1.5 leading-snug">
+                    {currentStory.title}
+                  </p>
+                  <p className="font-nunito text-gray-600 text-sm leading-relaxed italic">
+                    {currentStory.narrator_intro}
+                  </p>
+                </div>
+              ) : (
+                <p className="font-nunito text-gray-700 text-base leading-relaxed text-center">
+                  {currentPara?.text}
+                </p>
+              )}
 
-          <motion.button whileTap={{ scale: 0.88 }} onClick={goNext} disabled={paraIndex >= totalSlides - 1}
-            className="w-12 h-12 rounded-2xl bg-white/70 backdrop-blur-sm flex items-center justify-center text-xl disabled:opacity-30 shadow-sm">
-            ⏭
-          </motion.button>
+              {/* Nani identity pill + audio state indicator */}
+              <div className="flex flex-col items-center gap-1.5 mt-3">
+                <div className="flex items-center gap-1.5">
+                  {speaking && !paused && (
+                    <motion.div className="flex gap-0.5 items-end h-3 mr-1">
+                      {[0,1,2].map(i => (
+                        <motion.div key={i} className="w-0.5 bg-coral rounded-full"
+                          animate={{ height: ['30%','100%','30%'] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.12 }} />
+                      ))}
+                    </motion.div>
+                  )}
+                  <span className="text-base">{narrator.emoji}</span>
+                  <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
+                </div>
 
-          <motion.button whileTap={{ scale: 0.88 }} onClick={toggleMusic}
-            className={`w-12 h-12 rounded-2xl backdrop-blur-sm flex items-center justify-center text-xl transition-colors shadow-sm ${
-              musicOn ? 'bg-sky/20 text-sky' : 'bg-white/60 text-gray-400'
-            }`}>
-            {musicOn ? '🔊' : '🔇'}
-          </motion.button>
+                {/* Audio loading dots — visible during API fetch gap */}
+                {ttsLoading && !speaking && !paused && (
+                  <div className="flex gap-1.5">
+                    {[0, 0.18, 0.36].map(d => (
+                      <motion.div
+                        key={d}
+                        className="w-1.5 h-1.5 rounded-full bg-gray-300"
+                        animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                        transition={{ duration: 0.65, repeat: Infinity, delay: d }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Controls */}
+        <div className="pb-5 pt-2 px-6 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <motion.button whileTap={{ scale: 0.88 }} onClick={goPrev} disabled={paraIndex <= -1}
+              className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-xl disabled:opacity-30">
+              ⏮
+            </motion.button>
+
+            <motion.button whileTap={{ scale: 0.88 }} onClick={togglePause}
+              className="w-16 h-16 rounded-full bg-coral flex items-center justify-center text-2xl text-white shadow-glow">
+              {paused ? '▶' : '⏸'}
+            </motion.button>
+
+            <motion.button whileTap={{ scale: 0.88 }} onClick={goNext} disabled={paraIndex >= totalSlides - 1}
+              className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-xl disabled:opacity-30">
+              ⏭
+            </motion.button>
+
+            <motion.button whileTap={{ scale: 0.88 }} onClick={toggleMusic}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-colors ${
+                musicOn ? 'bg-sky/20 text-sky' : 'bg-gray-100 text-gray-400'
+              }`}>
+              {musicOn ? '🔊' : '🔇'}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
