@@ -6,6 +6,8 @@ import ProgressBar from './ProgressBar';
 import type { GeneratedStory, StoryParagraph } from '@/lib/claude';
 import type { Narrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
+
+const MUSIC_DUCK = MUSIC_VOLUME * 0.18; // volume while TTS is speaking
 import { markPlayed } from '@/lib/storage';
 import { useTTS } from '@/lib/useTTS';
 
@@ -161,6 +163,15 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Duck music while TTS is speaking; restore when silent or paused
+  useEffect(() => {
+    const howl = howlRef.current;
+    if (!howl || !musicOn) return;
+    const target = (speaking && !paused) ? MUSIC_DUCK : MUSIC_VOLUME;
+    howl.fade(howl.volume(), target, 400);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speaking, paused]);
+
   // ── Auto-advance paragraphs ─────────────────────
   useEffect(() => {
     if (pausedRef.current) return;
@@ -190,10 +201,13 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
   // ── Controls ────────────────────────────────────
   function togglePause() {
     if (paused) {
-      // Resume
+      // Resume — fade music back in, then re-speak
       pausedRef.current = false;
-      howlRef.current?.play();
-      // Re-speak current paragraph from beginning
+      setPaused(false);
+      if (howlRef.current) {
+        howlRef.current.play();
+        howlRef.current.fade(0, MUSIC_DUCK, 600); // start quiet; ducking effect will set final level
+      }
       const text = paraIndex === -1 ? story.narrator_intro : story.paragraphs[paraIndex]?.text ?? '';
       speak(text, 'english', () => {
         if (paraIndex === -1) {
@@ -205,12 +219,15 @@ export default function StoryPlayer({ story, narrator, storyId, onEnd }: StoryPl
         }
       });
     } else {
-      // Pause
+      // Pause — fade music out then pause
       pausedRef.current = true;
       stop();
-      howlRef.current?.pause();
+      if (howlRef.current) {
+        howlRef.current.fade(howlRef.current.volume(), 0, 400);
+        setTimeout(() => howlRef.current?.pause(), 450);
+      }
+      setPaused(true);
     }
-    setPaused(p => !p);
   }
 
   function goNext() {
