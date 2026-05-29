@@ -34,7 +34,7 @@ export default function SongPlayPage({ params }: PageProps) {
     const available = getLullabiesByLanguage(meta.language).filter(s => !s.comingSoon);
     const currentIdx = available.findIndex(s => s.id === songId);
     const next = available[(currentIdx + 1) % available.length];
-    if (!next) { router.push('/songs'); return; }
+    if (!next) { router.push('/sleep'); return; }
 
     const nextLullaby: GeneratedLullaby = {
       title: next.title,
@@ -53,10 +53,10 @@ export default function SongPlayPage({ params }: PageProps) {
         <div className="text-5xl mb-4">😕</div>
         <p className="font-nunito text-gray-600 mb-4">Could not load the lullaby.</p>
         <button
-          onClick={() => router.push('/songs')}
+          onClick={() => router.push('/sleep')}
           className="bg-coral text-white px-6 py-3 rounded-2xl font-nunito font-bold"
         >
-          Back to Songs
+          Back to Whispers
         </button>
       </div>
     );
@@ -74,7 +74,7 @@ export default function SongPlayPage({ params }: PageProps) {
     <LullabyPlayer
       lullaby={lullaby}
       songId={songId}
-      onEnd={() => router.push('/songs')}
+      onEnd={() => router.push('/sleep')}
       onNext={handleNext}
     />
   );

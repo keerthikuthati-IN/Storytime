@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Plus } from 'lucide-react';
+import { X, Camera, Plus, Images } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import { getProfile } from '@/lib/storage';
 import {
@@ -143,7 +143,8 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   const [date, setDate]   = useState(new Date().toISOString().slice(0, 10));
   const [photo, setPhoto] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -221,20 +222,32 @@ function AddMemoryModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
             </div>
             <div className="flex-shrink-0">
               <p className="font-nunito font-bold text-xs text-gray-400 mb-1.5 uppercase tracking-wider">Photo</p>
+              {/* Gallery picker — no capture, shows photo library */}
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+              {/* Camera picker — opens camera directly */}
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
               {photo ? (
                 <div className="relative">
                   <img src={photo} alt="" className="w-[72px] h-[46px] rounded-2xl object-cover" />
                   <button onClick={() => setPhoto(undefined)} className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center shadow">✕</button>
                 </div>
               ) : (
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="w-[72px] h-[46px] border-2 border-dashed border-coral/30 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-coral/50"
-                >
-                  <Camera size={14} />
-                  <span className="font-nunito font-bold text-[9px]">Add</span>
-                </button>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => cameraRef.current?.click()}
+                    className="w-[34px] h-[46px] border-2 border-dashed border-coral/30 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-coral/50"
+                    title="Take photo"
+                  >
+                    <Camera size={13} />
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="w-[34px] h-[46px] border-2 border-dashed border-coral/30 rounded-2xl flex flex-col items-center justify-center gap-0.5 text-coral/50"
+                    title="Choose from gallery"
+                  >
+                    <Images size={13} />
+                  </button>
+                </div>
               )}
             </div>
           </div>

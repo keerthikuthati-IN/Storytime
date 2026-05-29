@@ -164,7 +164,7 @@ export default function LullabyPlayer({ lullaby, songId, onEnd, onNext }: Lullab
 
       {/* Cinematic night scene — fills entire screen behind content */}
       <div className="absolute inset-0 z-0">
-        <CinematicRenderer />
+        <CinematicRenderer mood={currentVerse?.mood ?? lullaby.mood} />
       </div>
 
       {/* Spacer — same height as old avatar area so card + controls stay at bottom */}

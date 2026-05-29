@@ -191,31 +191,27 @@ export default function PlayPage({ params }: PageProps) {
       <div className="h-screen relative overflow-hidden fun-bg">
         <LoadingParticles narratorId={narratorId} />
 
-        {/* Nani emoji — always visible, no Rive dependency */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 180, damping: 18 }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
+        {/* Centered column: emoji + text directly below it */}
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
           <motion.div
-            animate={{ scale: [1, 1.06, 1] }}
-            transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ fontSize: 120, filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.12))' }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 180, damping: 18 }}
           >
-            🧓
+            <motion.div
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ fontSize: 120, filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.12))' }}
+            >
+              🧓
+            </motion.div>
           </motion.div>
-        </motion.div>
 
-        {/* Text overlaid at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col items-center pb-14 pt-8 text-center px-6"
-          style={{ background: 'linear-gradient(to top, rgba(255,255,255,0.85) 0%, transparent 100%)' }}
-        >
           <motion.h2
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="font-baloo font-bold text-xl text-gray-700 mb-1"
+            className="font-baloo font-bold text-xl text-gray-700 mt-6 mb-1"
           >
             {narrator.name} is preparing...
           </motion.h2>
@@ -224,7 +220,7 @@ export default function PlayPage({ params }: PageProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="font-nunito text-gray-500 text-sm mb-5"
+            className="font-nunito text-gray-500 text-sm mb-6"
           >
             Weaving the magic of{' '}
             <span className="font-semibold text-gray-700">"{title}"</span>

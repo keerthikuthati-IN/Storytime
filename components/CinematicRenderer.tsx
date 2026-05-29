@@ -22,8 +22,58 @@ const CLOUDS = [
   { id: 2, top: '12%', width: 130, height: 35, opacity: 0.04, dur: '50s', delay: '8s'  },
 ];
 
-export default function CinematicRenderer() {
+// Mood-aware moon styling
+const MOOD_CONFIG: Record<string, {
+  bg: string;
+  glow1: string;
+  glow2: string;
+  glowHot1: string;
+  glowHot2: string;
+  animSpeed: string;
+}> = {
+  calm: {
+    bg:       'radial-gradient(circle at 38% 38%, #FFFEF8 0%, #FFFCE0 55%, #FFF5B0 100%)',
+    glow1:    'rgba(255,252,210,0.12)',
+    glow2:    'rgba(255,252,210,0.06)',
+    glowHot1: 'rgba(255,252,210,0.18)',
+    glowHot2: 'rgba(255,252,210,0.08)',
+    animSpeed: '5s',
+  },
+  magical: {
+    bg:       'radial-gradient(circle at 38% 38%, #FFF0FA 0%, #FFD6F0 55%, #FFB8E8 100%)',
+    glow1:    'rgba(255,180,240,0.14)',
+    glow2:    'rgba(255,180,240,0.07)',
+    glowHot1: 'rgba(255,180,240,0.22)',
+    glowHot2: 'rgba(255,180,240,0.10)',
+    animSpeed: '4s',
+  },
+  exciting: {
+    bg:       'radial-gradient(circle at 38% 38%, #FFFEF8 0%, #FFE8B0 55%, #FFD080 100%)',
+    glow1:    'rgba(255,220,120,0.14)',
+    glow2:    'rgba(255,220,120,0.07)',
+    glowHot1: 'rgba(255,220,120,0.22)',
+    glowHot2: 'rgba(255,220,120,0.10)',
+    animSpeed: '3.5s',
+  },
+  tense: {
+    bg:       'radial-gradient(circle at 38% 38%, #F0F4FF 0%, #C8D8FF 55%, #A0B8FF 100%)',
+    glow1:    'rgba(160,184,255,0.14)',
+    glow2:    'rgba(160,184,255,0.07)',
+    glowHot1: 'rgba(160,184,255,0.20)',
+    glowHot2: 'rgba(160,184,255,0.10)',
+    animSpeed: '6s',
+  },
+};
+
+interface CinematicRendererProps {
+  mood?: string;
+}
+
+export default function CinematicRenderer({ mood }: CinematicRendererProps) {
   const [dim, setDim] = useState(false);
+  const cfg = MOOD_CONFIG[mood ?? 'calm'] ?? MOOD_CONFIG.calm;
+  // Moon is 120px; use negative margins to center precisely without transform (so scale anim is clean)
+  const MOON_SIZE = 120;
 
   return (
     <div
@@ -37,8 +87,8 @@ export default function CinematicRenderer() {
           50%       { opacity: calc(var(--star-op) * 0.3); transform: scale(0.8); }
         }
         @keyframes moonBreathe {
-          0%, 100% { transform: scale(1);     box-shadow: 0 0 40px 8px rgba(255,252,210,0.12), 0 0 80px 20px rgba(255,252,210,0.06); }
-          50%       { transform: scale(1.035); box-shadow: 0 0 55px 12px rgba(255,252,210,0.18), 0 0 100px 28px rgba(255,252,210,0.08); }
+          0%, 100% { transform: scale(1); }
+          50%       { transform: scale(1.04); }
         }
         @keyframes cloudDrift {
           0%   { transform: translateX(-20px); }
@@ -68,17 +118,20 @@ export default function CinematicRenderer() {
         />
       ))}
 
-      {/* Moon */}
+      {/* Moon — centered in the sky (upper portion above controls) */}
       <div
         className="absolute rounded-full"
         style={{
-          top: '10%',
+          top: '38%',
           left: '50%',
-          transform: 'translateX(-50%)',
-          width: 100,
-          height: 100,
-          background: 'radial-gradient(circle at 38% 38%, #FFFEF8 0%, #FFFCE0 55%, #FFF5B0 100%)',
-          animation: 'moonBreathe 5s ease-in-out infinite',
+          marginLeft: -(MOON_SIZE / 2),
+          marginTop: -(MOON_SIZE / 2),
+          width: MOON_SIZE,
+          height: MOON_SIZE,
+          background: cfg.bg,
+          animation: `moonBreathe ${cfg.animSpeed} ease-in-out infinite`,
+          transition: 'background 1.5s ease, box-shadow 1.5s ease',
+          boxShadow: `0 0 40px 8px ${cfg.glow1}, 0 0 80px 20px ${cfg.glow2}, 0 0 120px 40px ${cfg.glowHot2}`,
         }}
       />
 
