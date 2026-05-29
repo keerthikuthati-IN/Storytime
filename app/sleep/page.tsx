@@ -9,90 +9,419 @@ import {
   WHITE_NOISE_TRACKS, WHITE_NOISE_ORDER, SLEEP_TIMER_OPTIONS,
   type WhiteNoiseType,
 } from '@/lib/whiteNoise';
-import { getLullabiesByLanguage, type Lullaby } from '@/lib/lullabies';
+import { LULLABIES, type Lullaby } from '@/lib/lullabies';
 import type { GeneratedLullaby } from '@/app/api/songs/generate/route';
 
-type SleepTab = 'noise' | 'lullabies';
-type LullabyLang = 'english' | 'telugu';
+// ── Types ──────────────────────────────────────────────────────────────────
 
-// ── White Noise Player ─────────────────────────────────────────────────────
+type NowPlaying =
+  | { type: 'sound'; key: WhiteNoiseType }
+  | { type: 'lullaby'; id: string; title: string }
+  | null;
 
-function WhiteNoiseTab() {
-  const [active, setActive]   = useState<WhiteNoiseType>('brown');
-  const [playing, setPlaying] = useState(false);
-  const [timerIdx, setTimerIdx] = useState(1); // default 30 min
-  const [dimmed, setDimmed]   = useState(false);
+// ── Persistent Player Stage ────────────────────────────────────────────────
+
+function PlayerStage({
+  nowPlaying,
+  playing,
+  timerIdx,
+  onPlayPause,
+  onCycleTimer,
+}: {
+  nowPlaying: NowPlaying;
+  playing: boolean;
+  timerIdx: number;
+  onPlayPause: () => void;
+  onCycleTimer: () => void;
+}) {
+  const isSound   = nowPlaying?.type === 'sound';
+  const isLullaby = nowPlaying?.type === 'lullaby';
+  const isIdle    = !nowPlaying;
+
+  const trackLabel = isSound
+    ? WHITE_NOISE_TRACKS[nowPlaying!.key as WhiteNoiseType].label
+    : isLullaby
+    ? nowPlaying!.title
+    : null;
+
+  const moonColor = isSound
+    ? { from: '#fffce0', to: '#ffd97d', shadow: 'rgba(255,220,100,0.5)' }
+    : isLullaby
+    ? { from: '#ffe8f0', to: '#ffb8d0', shadow: 'rgba(255,150,180,0.5)' }
+    : { from: '#2a2050', to: '#1a1535', shadow: 'transparent' };
+
+  return (
+    <div
+      className="mx-0"
+      style={{
+        background: 'linear-gradient(160deg, #1a1240 0%, #2d1f5e 60%, #1a2a4a 100%)',
+        padding: '22px 20px 18px',
+        marginBottom: 0,
+      }}
+    >
+      {/* Track row */}
+      <div className="flex items-center gap-4 mb-4">
+        {/* Moon */}
+        <motion.div
+          animate={playing ? { scale: [1, 1.07, 1] } : { scale: 1 }}
+          transition={{ duration: 3.8, repeat: playing ? Infinity : 0, ease: 'easeInOut' }}
+          style={{
+            width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
+            background: `radial-gradient(circle at 35% 35%, ${moonColor.from}, ${moonColor.to})`,
+            boxShadow: playing ? `0 0 24px ${moonColor.shadow}` : 'none',
+            border: isIdle ? '1px solid rgba(255,255,255,0.1)' : 'none',
+          }}
+        />
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>
+            {isSound ? '🔊 Sound' : isLullaby ? '🎵 Lullaby' : 'Nothing playing'}
+            {playing ? ' · Playing' : isIdle ? '' : ' · Paused'}
+          </p>
+          <p style={{
+            fontSize: 15, fontWeight: 800, color: isIdle ? 'rgba(255,255,255,0.2)' : 'white',
+            fontStyle: isIdle ? 'italic' : 'normal',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {trackLabel ?? 'Tap a lullaby or sound below…'}
+          </p>
+        </div>
+
+        {/* Play/pause */}
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          onClick={onPlayPause}
+          disabled={isIdle}
+          style={{
+            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+            background: isIdle ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.18)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, color: isIdle ? 'rgba(255,255,255,0.2)' : 'white',
+            cursor: isIdle ? 'default' : 'pointer',
+          }}
+        >
+          {playing ? '⏸' : '▶'}
+        </motion.button>
+      </div>
+
+      {/* Timer chips — active only for sounds */}
+      <div className="flex gap-2">
+        {SLEEP_TIMER_OPTIONS.map((opt, i) => {
+          const isActive = timerIdx === i && isSound;
+          return (
+            <motion.button
+              key={opt.label}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => isSound && onCycleTimer()}
+              style={{
+                fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '4px 10px',
+                background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)',
+                color: isActive ? 'white' : 'rgba(255,255,255,0.3)',
+                cursor: isSound ? 'pointer' : 'default',
+                border: 'none',
+              }}
+            >
+              {opt.label}
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Sound Chips ────────────────────────────────────────────────────────────
+
+function SoundChips({
+  activeKey,
+  playing,
+  onSelect,
+}: {
+  activeKey: WhiteNoiseType | null;
+  playing: boolean;
+  onSelect: (key: WhiteNoiseType) => void;
+}) {
+  return (
+    <div
+      style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, scrollbarWidth: 'none' }}
+      className="no-scrollbar"
+    >
+      {WHITE_NOISE_ORDER.map(key => {
+        const t = WHITE_NOISE_TRACKS[key];
+        const isActive = activeKey === key;
+        return (
+          <motion.button
+            key={key}
+            whileTap={{ scale: 0.93 }}
+            onClick={() => onSelect(key)}
+            style={{
+              flexShrink: 0, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', gap: 5,
+              background: isActive
+                ? 'linear-gradient(135deg, #FF6B6B, #ff8e53)'
+                : 'white',
+              borderRadius: 20, padding: '14px 12px 10px', minWidth: 70,
+              boxShadow: isActive
+                ? '0 4px 16px rgba(255,107,107,0.35)'
+                : '0 2px 10px rgba(0,0,0,0.07)',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 22 }}>{t.emoji}</span>
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              color: isActive ? 'rgba(255,255,255,0.9)' : '#888',
+            }}>
+              {t.label}
+            </span>
+            {/* Animated bars when playing */}
+            {isActive && playing && (
+              <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 10 }}>
+                {[0, 1, 2].map(i => (
+                  <motion.div
+                    key={i}
+                    style={{ width: 3, background: 'white', borderRadius: 2 }}
+                    animate={{ height: ['30%', '100%', '30%'] }}
+                    transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Lullaby List ───────────────────────────────────────────────────────────
+
+const LULLABY_GRADIENT: Record<string, [string, string]> = {
+  '⭐': ['#FFF3C4', '#FFE0A0'],
+  '🌙': ['#E8F0FF', '#C8D8FF'],
+  '🌿': ['#E8FFF0', '#C0ECC8'],
+  '🤫': ['#FFF0E0', '#FFD8B0'],
+  '☀️': ['#FFF8E0', '#FFE8A0'],
+  '🐑': ['#F0E8FF', '#DCC8FF'],
+  '🌸': ['#FFE0EC', '#FFC8DA'],
+  '💤': ['#E8FFF8', '#B8F0E0'],
+  '🪷': ['#F0E8FF', '#DCC8FF'],
+  '🍃': ['#E8FFF0', '#C0ECC8'],
+  '✨': ['#FFF3C4', '#FFE0A0'],
+};
+
+function getLullabyGradient(emoji: string): [string, string] {
+  return LULLABY_GRADIENT[emoji] ?? ['#FFF3C4', '#FFE0A0'];
+}
+
+function LullabyList({
+  onPlay,
+}: {
+  onPlay: (song: Lullaby) => void;
+}) {
+  const all = LULLABIES;
+  const available = all.filter(s => !s.comingSoon);
+  const soon      = all.filter(s => s.comingSoon);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {[...available, ...soon].map((song, i) => {
+        const [from, to] = getLullabyGradient(song.emoji);
+        const isSoon = !!song.comingSoon;
+
+        return (
+          <motion.div
+            key={song.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04 }}
+            whileTap={isSoon ? {} : { scale: 0.97 }}
+            onClick={() => !isSoon && onPlay(song)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              background: 'white', borderRadius: 18, padding: '12px 14px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              cursor: isSoon ? 'default' : 'pointer',
+              opacity: isSoon ? 0.4 : 1,
+            }}
+          >
+            {/* Icon */}
+            <div style={{
+              width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+              background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 22,
+            }}>
+              {song.emoji}
+            </div>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontSize: 13, fontWeight: 700, color: '#333',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {song.title}
+              </p>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 3 }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 800, borderRadius: 6, padding: '2px 6px',
+                  background: song.language === 'english' ? '#e0f0ff' : '#fff0e0',
+                  color: song.language === 'english' ? '#3b82f6' : '#f59e0b',
+                }}>
+                  {song.language === 'english' ? 'English' : 'Telugu'}
+                </span>
+                {isSoon
+                  ? <span style={{ fontSize: 9, fontWeight: 800, background: '#f3f4f6', color: '#9ca3af', borderRadius: 6, padding: '2px 7px' }}>Coming soon</span>
+                  : <span style={{ fontSize: 11, color: '#aaa', fontWeight: 600 }}>{song.durationEstimate}</span>
+                }
+              </div>
+            </div>
+
+            {/* Play arrow */}
+            {!isSoon && (
+              <span style={{ color: '#ddd', fontSize: 16, flexShrink: 0 }}>▶</span>
+            )}
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Sleep Page ─────────────────────────────────────────────────────────────
+
+export default function SleepPage() {
+  const router  = useRouter();
+  const profile = typeof window !== 'undefined' ? getProfile() : null;
+  const isNewborn = profile ? getAgeGroup(profile.age) === 'newborn' : false;
+  const profileName = profile?.name ?? null;
+
+  const [nowPlaying, setNowPlaying] = useState<NowPlaying>(null);
+  const [playing,    setPlaying]    = useState(false);
+  const [timerIdx,   setTimerIdx]   = useState(1); // 30 min default
 
   const howlRef    = useRef<import('howler').Howl | null>(null);
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dimTimerRef= useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dimmed,   setDimmed]       = useState(false);
 
+  // ── Sound playback ──
   const stopSound = useCallback(() => {
     if (howlRef.current) {
-      howlRef.current.fade(0.85, 0, 2000);
-      setTimeout(() => { howlRef.current?.unload(); howlRef.current = null; }, 2100);
+      howlRef.current.fade(0.85, 0, 1800);
+      setTimeout(() => { howlRef.current?.unload(); howlRef.current = null; }, 2000);
     }
+    if (timerRef.current)    clearTimeout(timerRef.current);
+    if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
     setPlaying(false);
+    setDimmed(false);
   }, []);
 
-  const startSound = useCallback(async (type: WhiteNoiseType) => {
+  const startSound = useCallback(async (key: WhiteNoiseType) => {
     if (howlRef.current) { howlRef.current.unload(); howlRef.current = null; }
     const { Howl } = await import('howler');
-    const track = WHITE_NOISE_TRACKS[type];
+    const track = WHITE_NOISE_TRACKS[key];
     const howl = new Howl({
       src: [track.src], loop: true, volume: 0,
-      onload() { howl.fade(0, 0.85, 2000); },
-      onloaderror() { console.warn('[WhiteNoise] audio not found:', track.src); setPlaying(false); },
+      onload()      { howl.fade(0, 0.85, 1800); },
+      onloaderror() { console.warn('[Sounds] not found:', track.src); setPlaying(false); },
     });
     howlRef.current = howl;
     howl.play();
+    setNowPlaying({ type: 'sound', key });
     setPlaying(true);
 
-    // Reset dim timer on each play
+    // Screen dim after 30s
     if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
     dimTimerRef.current = setTimeout(() => setDimmed(true), 30_000);
 
     // Sleep timer
-    const minutes = SLEEP_TIMER_OPTIONS[timerIdx].minutes;
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (minutes > 0) {
-      timerRef.current = setTimeout(() => stopSound(), minutes * 60_000);
-    }
+    const mins = SLEEP_TIMER_OPTIONS[timerIdx].minutes;
+    if (mins > 0) timerRef.current = setTimeout(() => stopSound(), mins * 60_000);
   }, [timerIdx, stopSound]);
 
+  // Cleanup on unmount
   useEffect(() => () => {
     howlRef.current?.unload();
-    if (timerRef.current) clearTimeout(timerRef.current);
+    if (timerRef.current)    clearTimeout(timerRef.current);
     if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
   }, []);
 
-  function togglePlay() {
-    if (playing) { stopSound(); setDimmed(false); }
-    else         { startSound(active); }
+  // Newborns auto-start ocean on mount
+  useEffect(() => {
+    if (isNewborn) startSound('ocean');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Handlers ──
+  function handleSelectSound(key: WhiteNoiseType) {
+    startSound(key);
   }
 
-  function selectSound(type: WhiteNoiseType) {
-    setActive(type);
-    if (playing) startSound(type);
+  function handlePlayPause() {
+    if (!nowPlaying) return;
+    if (nowPlaying.type === 'lullaby') return; // lullaby player handles its own state
+    if (playing) stopSound();
+    else startSound(nowPlaying.key as WhiteNoiseType);
   }
 
-  function cycleTimer() {
+  function handleCycleTimer() {
     const next = (timerIdx + 1) % SLEEP_TIMER_OPTIONS.length;
     setTimerIdx(next);
-    // Reschedule live timer if playing
     if (playing && timerRef.current) {
       clearTimeout(timerRef.current);
-      const minutes = SLEEP_TIMER_OPTIONS[next].minutes;
-      if (minutes > 0) timerRef.current = setTimeout(() => stopSound(), minutes * 60_000);
+      const mins = SLEEP_TIMER_OPTIONS[next].minutes;
+      if (mins > 0) timerRef.current = setTimeout(() => stopSound(), mins * 60_000);
     }
   }
 
+  function handlePlayLullaby(song: Lullaby) {
+    if (song.comingSoon) return;
+    stopSound(); // stop any playing sound first
+    const lullaby: GeneratedLullaby = {
+      title: song.title, language: song.language, mood: song.mood,
+      intro: song.intro,
+      verses: song.verses.map(text => ({ text, mood: song.mood })),
+    };
+    sessionStorage.setItem(`lullaby_${song.id}`, JSON.stringify(lullaby));
+    setNowPlaying({ type: 'lullaby', id: song.id, title: song.title });
+    router.push(`/songs/play/${song.id}`);
+  }
+
+  // ── Sections (profile-ordered) ──
+  const soundsSection = (
+    <div>
+      <p className="font-nunito font-bold text-xs text-amber-500 uppercase tracking-widest mb-3 px-1">
+        🔊 Sounds
+      </p>
+      <SoundChips
+        activeKey={nowPlaying?.type === 'sound' ? nowPlaying.key : null}
+        playing={playing}
+        onSelect={handleSelectSound}
+      />
+    </div>
+  );
+
+  const lullabiesSection = (
+    <div>
+      <p className="font-nunito font-bold text-xs text-amber-500 uppercase tracking-widest mb-3 px-1">
+        🎵 Lullabies
+      </p>
+      <LullabyList onPlay={handlePlayLullaby} />
+    </div>
+  );
+
   return (
     <div
-      className="px-5 pb-4"
+      className="min-h-screen pb-28 relative"
+      style={{ background: 'linear-gradient(160deg, #FFF4F8 0%, #F5F0FF 50%, #F0F9FF 100%)' }}
       onClick={() => { if (dimmed) setDimmed(false); }}
     >
-      {/* Dim overlay — only when playing and screen auto-dims */}
+      {/* Screen dim overlay */}
       <AnimatePresence>
         {dimmed && (
           <motion.div
@@ -103,238 +432,42 @@ function WhiteNoiseTab() {
         )}
       </AnimatePresence>
 
-      {/* Now playing indicator */}
-      {playing && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-2 mb-4 px-1"
-        >
-          <motion.div
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 0.8, repeat: Infinity }}
-            className="w-2 h-2 rounded-full bg-coral"
-          />
-          <span className="font-nunito font-bold text-sm text-coral">
-            {WHITE_NOISE_TRACKS[active].label}
-          </span>
-          <span className="font-nunito text-xs text-gray-400">playing</span>
-        </motion.div>
-      )}
-
-      {/* Sound list — vertical */}
-      <div className="space-y-2 mb-6">
-        {WHITE_NOISE_ORDER.map(type => {
-          const t = WHITE_NOISE_TRACKS[type];
-          const isActive = active === type;
-          return (
-            <motion.button
-              key={type}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => selectSound(type)}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all ${
-                isActive
-                  ? 'bg-coral/8 border-coral/25 text-gray-800'
-                  : 'bg-white border-gray-100 text-gray-500'
-              }`}
-            >
-              <span className="text-2xl w-8 text-center">{t.emoji}</span>
-              <span className={`font-nunito font-bold text-sm flex-1 text-left ${isActive ? 'text-coral' : ''}`}>
-                {t.label}
-              </span>
-              {isActive && playing && (
-                <motion.div className="flex gap-0.5 items-end h-4">
-                  {[0, 1, 2].map(i => (
-                    <motion.div
-                      key={i}
-                      className="w-1 bg-coral rounded-full"
-                      animate={{ height: ['30%', '100%', '30%'] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-                    />
-                  ))}
-                </motion.div>
-              )}
-              {isActive && !playing && (
-                <div className="w-2 h-2 rounded-full bg-coral/40" />
-              )}
-            </motion.button>
-          );
-        })}
-      </div>
-
-      {/* Controls row */}
-      <div className="flex items-center justify-between bg-white rounded-2xl px-5 py-4 shadow-soft border border-gray-50">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={togglePlay}
-          className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl text-white shadow-glow ${playing ? 'bg-gray-400' : 'bg-coral'}`}
-        >
-          {playing ? '⏸' : '▶'}
-        </motion.button>
-
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="font-nunito text-[10px] text-gray-400 font-semibold uppercase tracking-wide">Sleep timer</span>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={cycleTimer}
-            className="font-nunito font-bold text-base text-gray-700"
-          >
-            {SLEEP_TIMER_OPTIONS[timerIdx].label}
-          </motion.button>
-        </div>
-
-        <div className="w-14 h-14" />
-      </div>
-    </div>
-  );
-}
-
-// ── Lullabies Grid (ported from /songs) ──────────────────────────────────
-
-const MOOD_CHIP: Record<string, { bg: string; text: string; label: string }> = {
-  calm:   { bg: 'bg-sky-100',    text: 'text-sky-600',    label: 'Calm'   },
-  happy:  { bg: 'bg-amber-100',  text: 'text-amber-600',  label: 'Happy'  },
-  sleepy: { bg: 'bg-purple-100', text: 'text-purple-600', label: 'Sleepy' },
-};
-
-function SongCard({ song, onPlay }: { song: Lullaby; onPlay: (s: Lullaby) => void }) {
-  const chip = MOOD_CHIP[song.mood] ?? MOOD_CHIP.calm;
-
-  if (song.comingSoon) {
-    return (
-      <div className="bg-white/60 rounded-3xl p-4 shadow-soft flex items-center gap-4 border border-gray-50 opacity-60">
-        <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-3xl flex-shrink-0">{song.emoji}</div>
-        <div className="flex-1 min-w-0">
-          <p className="font-baloo font-bold text-sm text-gray-500 leading-tight">{song.title}</p>
-          <span className="text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Coming Soon</span>
-        </div>
-        <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-          <span className="text-gray-400 text-sm">🔜</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <motion.div
-      whileTap={{ scale: 0.96 }}
-      onClick={() => onPlay(song)}
-      className="bg-white rounded-3xl p-4 shadow-soft cursor-pointer flex items-center gap-4 border border-gray-50"
-    >
-      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#FFF8F0] to-[#FFE8D6] flex items-center justify-center text-3xl flex-shrink-0 shadow-sm">{song.emoji}</div>
-      <div className="flex-1 min-w-0">
-        <p className="font-baloo font-bold text-sm text-gray-800 leading-tight">{song.title}</p>
-        <div className="flex items-center gap-2 mt-1">
-          <span className={`text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full ${chip.bg} ${chip.text}`}>{chip.label}</span>
-          <span className="font-nunito text-[10px] text-gray-400 font-semibold">⏱ {song.durationEstimate}</span>
-        </div>
-      </div>
-      <div className="w-9 h-9 rounded-full bg-coral flex items-center justify-center flex-shrink-0 shadow-sm">
-        <span className="text-white text-xs">▶</span>
-      </div>
-    </motion.div>
-  );
-}
-
-function LullabiesTab() {
-  const router = useRouter();
-  const [lang, setLang] = useState<LullabyLang>('english');
-  const songs = getLullabiesByLanguage(lang);
-
-  function handlePlay(song: Lullaby) {
-    if (song.comingSoon) return;
-    const lullaby: GeneratedLullaby = {
-      title: song.title, language: song.language, mood: song.mood, intro: song.intro,
-      verses: song.verses.map(text => ({ text, mood: song.mood })),
-    };
-    sessionStorage.setItem(`lullaby_${song.id}`, JSON.stringify(lullaby));
-    router.push(`/songs/play/${song.id}`);
-  }
-
-  return (
-    <div className="pb-4">
-      {/* Language tabs */}
-      <div className="px-5 mb-4">
-        <div className="flex bg-white/70 backdrop-blur-sm rounded-2xl p-1 shadow-soft">
-          {(['english', 'telugu'] as LullabyLang[]).map(t => (
-            <motion.button key={t} whileTap={{ scale: 0.96 }} onClick={() => setLang(t)}
-              className={`flex-1 py-2.5 rounded-xl font-nunito font-bold text-sm transition-all ${lang === t ? 'bg-coral text-white shadow-sm' : 'text-gray-400'}`}>
-              {t === 'english' ? '🇬🇧 English' : '🇮🇳 Telugu'}
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
-      {/* Song list */}
-      <div className="px-5 space-y-3">
-        <AnimatePresence mode="wait">
-          <motion.div key={lang} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="space-y-3">
-            {songs.map((song, i) => (
-              <motion.div key={song.id} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
-                <SongCard song={song} onPlay={handlePlay} />
-              </motion.div>
-            ))}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-// ── Sleep Page ─────────────────────────────────────────────────────────────
-
-export default function SleepPage() {
-  const [activeTab, setActiveTab] = useState<SleepTab>(() => {
-    // Default tab based on age group — newborns go straight to noise
-    if (typeof window === 'undefined') return 'lullabies';
-    const profile = getProfile();
-    if (!profile) return 'lullabies';
-    return getAgeGroup(profile.age) === 'newborn' ? 'noise' : 'lullabies';
-  });
-
-  const TAB_CONFIG: { key: SleepTab; label: string; emoji: string }[] = [
-    { key: 'noise',    label: 'White Noise', emoji: '🌙' },
-    { key: 'lullabies', label: 'Lullabies',  emoji: '🎵' },
-  ];
-
-  return (
-    <div className="min-h-screen fun-bg pb-28">
-
-      {/* Header */}
+      {/* Page header */}
       <div className="px-5 pt-11 pb-4">
         <h1 className="font-baloo font-bold text-[26px] leading-tight">
-          <span className="gradient-text">Sleep</span>
-          <span className="text-gray-800"> 🌙</span>
+          <span className="gradient-text">{profileName ? `${profileName}'s` : 'Our'}</span>
+          <span className="text-gray-800"> Whispers 🌙</span>
         </h1>
         <p className="font-nunito text-gray-400 text-sm mt-0.5 font-semibold">
           Nani is here — sleep now, kanna
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="px-5 mb-4">
-        <div className="flex bg-white/70 backdrop-blur-sm rounded-2xl p-1 shadow-soft">
-          {TAB_CONFIG.map(t => (
-            <motion.button key={t.key} whileTap={{ scale: 0.96 }} onClick={() => setActiveTab(t.key)}
-              className={`flex-1 py-2.5 rounded-xl font-nunito font-bold text-sm transition-all flex items-center justify-center gap-1.5 ${activeTab === t.key ? 'bg-coral text-white shadow-glow' : 'text-gray-400'}`}>
-              {t.emoji} {t.label}
-            </motion.button>
-          ))}
-        </div>
-      </div>
+      {/* Persistent player stage — always visible */}
+      <PlayerStage
+        nowPlaying={nowPlaying}
+        playing={playing}
+        timerIdx={timerIdx}
+        onPlayPause={handlePlayPause}
+        onCycleTimer={handleCycleTimer}
+      />
 
-      {/* Tab content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.25 }}
-        >
-          {activeTab === 'noise' ? <WhiteNoiseTab /> : <LullabiesTab />}
-        </motion.div>
-      </AnimatePresence>
+      {/* Browse sections — profile-ordered */}
+      <div className="px-5 pt-5 space-y-6">
+        {isNewborn ? (
+          <>
+            {soundsSection}
+            <div className="h-px bg-amber-100" />
+            {lullabiesSection}
+          </>
+        ) : (
+          <>
+            {lullabiesSection}
+            <div className="h-px bg-amber-100" />
+            {soundsSection}
+          </>
+        )}
+      </div>
 
       <BottomNav />
     </div>
