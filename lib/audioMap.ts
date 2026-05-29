@@ -12,9 +12,9 @@ export type StoryMood = 'happy' | 'magical' | 'calm' | 'exciting' | 'tense';
 export const MOOD_AUDIO: Record<StoryMood, string> = {
   happy: '/audio/calm.mp3',     // upbeat-calm works for happy
   calm: '/audio/calm.mp3',
-  magical: '/audio/magic.wav',
+  magical: '/audio/magical.mp3',
   exciting: '/audio/exciting.mp3',
-  tense: '/audio/tense.wav',
+  tense: '/audio/tense.mp3',
 };
 
 export const MUSIC_VOLUME = 0.2;
