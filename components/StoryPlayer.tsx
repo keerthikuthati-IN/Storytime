@@ -21,6 +21,7 @@ interface StoryPlayerProps {
   storyId: string;
   fromCache: boolean;
   storyMeta: { title: string; category: string; mood: string; narratorId: string; language?: string };
+  initialIllustrations?: Record<number, string>; // pre-loaded during play-page loading screen
   onEnd: () => void;
 }
 
@@ -120,7 +121,7 @@ function MoodBackground({ mood }: { mood: StoryMood }) {
   );
 }
 
-export default function StoryPlayer({ story, narrator, storyId, fromCache, storyMeta, onEnd }: StoryPlayerProps) {
+export default function StoryPlayer({ story, narrator, storyId, fromCache, storyMeta, initialIllustrations, onEnd }: StoryPlayerProps) {
   // Resolved once — stable for the lifetime of this player instance
   const storyLanguage = (storyMeta.language ?? story.language ?? 'english') as 'english' | 'telugu';
 
@@ -135,9 +136,12 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const [ttsLoading, setTtsLoading]       = useState(false);
   const [regenerating, setRegenerating]   = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
-  const [illustrations, setIllustrations] = useState<Record<number, string>>({});
+  // Seed with illustrations pre-loaded during the play-page loading screen
+  const [illustrations, setIllustrations] = useState<Record<number, string>>(
+    initialIllustrations ?? {}
+  );
   // Ref mirror of illustrations — used inside speak() callbacks which close over stale state
-  const illustrationsRef = useRef<Record<number, string>>({});
+  const illustrationsRef = useRef<Record<number, string>>(initialIllustrations ?? {});
   const [showIllustrations, setShowIllustrations] = useState(() => {
     const p = getProfile();
     return p ? getAgeGroup(p.age) !== 'newborn' : true;
@@ -148,8 +152,11 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const pausedRef      = useRef(false);
   // In-memory TTS audio cache: paraIndex → base64. Keyed by -1 (intro) or 0+.
   const audioCacheRef          = useRef<Map<number, string>>(new Map());
-  // Tracks which paragraph illustrations have been requested (prevents duplicate fetches)
-  const illustrationFetchedRef = useRef<Set<number>>(new Set());
+  // Tracks which paragraph illustrations have been requested (prevents duplicate fetches).
+  // Pre-populated with indices already loaded during the play-page loading screen.
+  const illustrationFetchedRef = useRef<Set<number>>(
+    new Set(Object.keys(initialIllustrations ?? {}).map(Number))
+  );
 
   const currentPara: StoryParagraph | null = paraIndex >= 0 ? currentStory.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';

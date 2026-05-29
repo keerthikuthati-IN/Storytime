@@ -8,6 +8,7 @@ import { generateStory, type GeneratedStory } from '@/lib/claude';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
+import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 
 interface PageProps {
   params: Promise<{ storyId: string }>;
@@ -123,6 +124,9 @@ export default function PlayPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromCache, setFromCache] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<'story' | 'illustrations'>('story');
+  const [illusReady, setIllusReady] = useState(0);   // 0–3 illustrations pre-loaded
+  const [initialIllustrations, setInitialIllustrations] = useState<Record<number, string>>({});
 
   const narrator = getNarratorById(narratorId) ?? getDefaultNarrator();
   const profile = typeof window !== 'undefined' ? getProfile() : null;
@@ -163,44 +167,73 @@ export default function PlayPage({ params }: PageProps) {
     async function load() {
       setLoading(true);
       setError(null);
+      setLoadingPhase('story');
+      setIllusReady(0);
+
       try {
-        // Cache hit — load instantly, skip API call entirely
+        // ── Phase 1: get story (cache hit or generate fresh) ──────────────
+        let storyData: GeneratedStory;
+        let isCache = false;
+
         const cached = getCachedStory(decodeURIComponent(storyId));
         if (cached) {
-          setStory(cached.story);
-          setFromCache(true);
-          setLoading(false);
-          return;
+          storyData = cached.story;
+          isCache = true;
+        } else {
+          const ageGroup = profile ? getAgeGroup(profile.age) : 'toddler';
+          storyData = await generateStory(
+            title,
+            category,
+            mood,
+            profile?.name ?? 'the child',
+            narratorId,
+            narrator!.name,
+            narrator!.personality,
+            ageGroup,
+            profile?.gender,
+            profile?.favouriteCategories,
+            language,
+          );
+
+          setCachedStory(decodeURIComponent(storyId), {
+            story: storyData,
+            title,
+            category,
+            mood,
+            narratorId,
+            language,
+            cachedAt: Date.now(),
+          });
         }
 
-        // Cache miss — generate fresh, then persist for all future plays
-        const ageGroup = profile ? getAgeGroup(profile.age) : 'toddler';
-        const generated = await generateStory(
-          title,
-          category,
-          mood,
-          profile?.name ?? 'the child',
-          narratorId,
-          narrator!.name,
-          narrator!.personality,
-          ageGroup,
-          profile?.gender,
-          profile?.favouriteCategories,
-          language,
+        // ── Phase 2: pre-fetch portrait + first 2 scenes before playback ─
+        // Runs during the loading screen so StoryPlayer starts with illustrations ready.
+        // For replays, IndexedDB hits make this near-instant.
+        setLoadingPhase('illustrations');
+        const sid = decodeURIComponent(storyId);
+        const preloadTargets = [
+          { paraIdx: -1,  desc: storyData.title,                          mood: 'magical' },
+          ...(storyData.paragraphs.slice(0, 2).map((p, i) => ({
+            paraIdx: i, desc: p.scene_description, mood: p.mood,
+          }))),
+        ];
+
+        const initialIllus: Record<number, string> = {};
+        await Promise.allSettled(
+          preloadTargets.map(async ({ paraIdx, desc, mood: m }) => {
+            const dataUrl = await fetchIllustrationDataUrl(
+              sid, paraIdx, desc, m, storyData.title,
+            );
+            if (dataUrl) {
+              initialIllus[paraIdx] = dataUrl;
+              setIllusReady(prev => prev + 1);
+            }
+          })
         );
 
-        setCachedStory(decodeURIComponent(storyId), {
-          story: generated,
-          title,
-          category,
-          mood,
-          narratorId,
-          language,
-          cachedAt: Date.now(),
-        });
-
-        setStory(generated);
-        setFromCache(false);
+        setInitialIllustrations(initialIllus);
+        setStory(storyData);
+        setFromCache(isCache);
       } catch {
         setError('Could not generate story. Please check your API key and connection.');
       } finally {
@@ -213,7 +246,7 @@ export default function PlayPage({ params }: PageProps) {
 
   if (!narrator) return null;
 
-  if (loading && !fromCache) {
+  if (loading) {
     return (
       <div className="h-screen relative overflow-hidden fun-bg">
         <LoadingParticles narratorId={narratorId} />
@@ -243,15 +276,31 @@ export default function PlayPage({ params }: PageProps) {
             {narrator.name} is preparing...
           </motion.h2>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="font-nunito text-gray-500 text-sm mb-6"
-          >
-            Weaving the magic of{' '}
-            <span className="font-semibold text-gray-700">"{title}"</span>
-          </motion.p>
+          <AnimatePresence mode="wait">
+            {loadingPhase === 'story' ? (
+              <motion.p
+                key="story"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="font-nunito text-gray-500 text-sm mb-6"
+              >
+                Weaving the magic of{' '}
+                <span className="font-semibold text-gray-700">"{title}"</span>
+              </motion.p>
+            ) : (
+              <motion.p
+                key="illustrations"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="font-nunito text-gray-500 text-sm mb-6"
+              >
+                Painting your scenes…{' '}
+                <span className="font-semibold text-gray-700">{illusReady} of 3 ready ✨</span>
+              </motion.p>
+            )}
+          </AnimatePresence>
 
           <div className="flex gap-2">
             {[0.1, 0.2, 0.3].map(d => (
@@ -293,6 +342,7 @@ export default function PlayPage({ params }: PageProps) {
       storyId={decodeURIComponent(storyId)}
       fromCache={fromCache}
       storyMeta={{ title, category, mood, narratorId, language }}
+      initialIllustrations={initialIllustrations}
       onEnd={() => router.push('/my-stories')}
     />
   );
