@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 // en-IN candidates for elderly/caring/calm Nani character (test in order):
 //   suhani (current) → roopa → kavitha → rupali
 const SPEAKERS: Record<string, string> = {
-  'en-IN': 'rupali',  // gentle, warm, more neutral-sounding female — Nani character
+  'en-IN': 'neha',    // expressive, emotional — testing for Nani character
   'te-IN': 'neha',   // Telugu, expressive and emotional female
 };
 
