@@ -31,7 +31,7 @@ function hashCode(str: string): number {
 
 export async function POST(req: Request) {
   try {
-    const { scene_description, mood = 'calm', title } = await req.json();
+    const { scene_description, mood = 'calm', title, story_title } = await req.json();
 
     if (!scene_description && !title) {
       return NextResponse.json({ error: 'scene_description or title required' }, { status: 400 });
@@ -39,14 +39,18 @@ export async function POST(req: Request) {
 
     const moodHint = MOOD_HINT[mood] ?? MOOD_HINT.calm;
 
-    // ── Safety wrapper — non-negotiable, always prepended ──────────────────
+    // ── Safety wrapper + style — non-negotiable, always prepended ──────────
+    // Ghibli-inspired warmth + Indian animation richness = soft, dreamy,
+    // culturally resonant illustrations that feel timeless and child-safe.
     const safePrefix = [
       "children's picture book illustration",
-      'soft soothing watercolor painting',
-      'warm cozy Indian bedtime',
-      'dreamy pastel glow',
+      'Studio Ghibli inspired soft watercolor painting',
+      'warm Indian folk art aesthetic',
+      'rich jewel-toned pastels with golden ambient glow',
+      'hand-painted dreamy quality',
+      'soft gradients and warm color palette',
       'gentle and calm',
-      'rounded friendly shapes',
+      'rounded friendly shapes and expressive faces',
       'safe for children aged 0 to 6',
       'no text no words',
       'simple clean composition',
@@ -71,8 +75,13 @@ export async function POST(req: Request) {
       ].join(', ');
       seed = hashCode(title + '_portrait');
     } else {
-      // ── Scene mode — story moment from scene_description ───────────────
-      contentPrompt = `${moodHint}, ${scene_description}`;
+      // ── Scene mode — story moment with character authenticity ───────────
+      // Including story_title anchors the characters to their iconic look
+      // (Aladdin in his blue vest, Cinderella in her gown, etc.)
+      const storyContext = story_title
+        ? `authentic characters from the story "${story_title}", ${scene_description}`
+        : scene_description;
+      contentPrompt = `${moodHint}, ${storyContext}`;
       seed = hashCode(scene_description);
     }
 

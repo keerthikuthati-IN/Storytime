@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
 Age group guidance: ${ageGuidance}
 
-Mix stories from BOTH Western classics AND Indian/Telugu classics. Roughly half should be Indian stories that Indian families know and love.
+IMPORTANT LANGUAGE RULE: Return EXACTLY 2 Telugu/Indian stories and EXACTLY 8 English/Western stories. No more, no less. Mark the 2 Telugu stories with "language": "telugu" and all English stories with "language": "english".
 
 Western classics to draw from:
 Goldilocks and the Three Bears, The Three Little Pigs, Cinderella, Snow White, Sleeping Beauty, Jack and the Beanstalk, Little Red Riding Hood, Rapunzel, Hansel and Gretel, The Ugly Duckling, The Tortoise and the Hare, The Lion and the Mouse, Rumpelstiltskin, Thumbelina, Puss in Boots, The Gingerbread Man, Beauty and the Beast, The Little Mermaid, Pinocchio, Peter Pan, Winnie the Pooh and the Honey Tree, Curious George, The Velveteen Rabbit, Bambi, Dumbo, The Jungle Book, Aladdin, Ali Baba and the Forty Thieves, Sinbad the Sailor.
@@ -40,7 +40,8 @@ Return a JSON array of 10 objects with this shape:
   "ageRange": "2-4",
   "duration": "3 min",
   "mood": "happy|magical|calm|exciting|tense",
-  "coverColor": "a warm hex color for the card background"
+  "coverColor": "a warm hex color for the card background",
+  "language": "english|telugu"
 }`;
 
     const message = await client.messages.create({

@@ -159,7 +159,7 @@ export default function DiscoverPage() {
                       transition={{ delay: i * 0.05, type: 'spring', stiffness: 300, damping: 24 }}
                       onClick={() => {
                         setConfirmDeleteId(null);
-                        router.push(`/play/${encodeURIComponent(story.id)}?title=${encodeURIComponent(story.title)}&category=${encodeURIComponent(story.category)}&mood=${encodeURIComponent(story.mood)}&narrator=nana-luna`);
+                        router.push(`/play/${encodeURIComponent(story.id)}?title=${encodeURIComponent(story.title)}&category=${encodeURIComponent(story.category)}&mood=${encodeURIComponent(story.mood)}&narrator=nana-luna&language=${encodeURIComponent((story as {language?: string}).language ?? 'english')}`);
                       }}
                       className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer"
                     >

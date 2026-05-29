@@ -7,6 +7,7 @@ export interface StoryRecommendation {
   duration: string;
   mood: 'happy' | 'magical' | 'calm' | 'exciting' | 'tense';
   coverColor: string;
+  language: 'english' | 'telugu';
 }
 
 export interface NarratorEmotion {
@@ -26,6 +27,7 @@ export interface GeneratedStory {
   title: string;
   narrator_intro: string;
   paragraphs: StoryParagraph[];
+  language?: 'english' | 'telugu';
 }
 
 export async function fetchStoryRecommendations(
@@ -57,12 +59,13 @@ export async function generateStory(
   narratorDescription: string,
   ageGroup?: string,
   gender?: string,
-  interests?: string[]
+  interests?: string[],
+  language?: string,
 ): Promise<GeneratedStory> {
   const res = await fetch('/api/stories/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup, gender, interests }),
+    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup, gender, interests, language }),
   });
   if (!res.ok) throw new Error('Failed to generate story');
   const data = await res.json();

@@ -91,6 +91,13 @@ export default function SwipeCard({ story, onLike, onDislike, isTop }: SwipeCard
             {story.category}
           </div>
 
+          {/* Telugu badge */}
+          {story.language === 'telugu' && (
+            <div className="absolute bottom-4 left-4 bg-amber-500 text-white px-2.5 py-1 rounded-full font-nunito font-extrabold text-[10px] flex items-center gap-1">
+              🇮🇳 తెలుగు
+            </div>
+          )}
+
           {/* Duration & Age */}
           <div className="absolute top-4 right-4 flex gap-2">
             <span className="bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full font-nunito text-xs text-gray-600 font-semibold">

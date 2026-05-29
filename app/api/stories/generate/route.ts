@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   try {
-    const { title, category, mood, childName, narratorName, narratorDescription, ageGroup = 'toddler', gender = 'neutral', interests = [] } = await req.json();
+    const { title, category, mood, childName, narratorName, narratorDescription, ageGroup = 'toddler', gender = 'neutral', interests = [], language = 'english' } = await req.json();
+    const isTelugu = language === 'telugu';
 
     const AGE_INSTRUCTIONS: Record<string, string> = {
       'newborn':       'Write only 3 very short paragraphs (2 soft sentences each). Use only simple sensory words — warm, soft, gentle, cozy, quiet. Focus entirely on warmth and magical peacefulness, no plot or conflict. Use gentle repetition ("soft and warm, warm and soft"). The mood must be purely loving and magical. End with the world going still and the baby drifting to sleep.',
@@ -16,11 +17,17 @@ export async function POST(req: Request) {
     const interestsHint = interests.length > 0 ? `The child loves: ${interests.join(', ')}. Weave these naturally into the story where it fits.` : '';
     const ageInstruction = AGE_INSTRUCTIONS[ageGroup] ?? AGE_INSTRUCTIONS['toddler'];
 
+    const languageInstruction = isTelugu
+      ? `LANGUAGE: Write the entire story in Telugu script (తెలుగు). The title, narrator_intro, and all paragraph "text" fields must be in Telugu. Keep "scene_description" in English (it is used for illustration generation only).`
+      : `LANGUAGE: Write in English.`;
+
     const userPrompt = `Tell the classic bedtime story "${title}" in the style of ${narratorName}, who is ${narratorDescription}.
 The child's name is ${childName} — weave them in naturally as a small observer or friend of the main character if it fits.
 The story category is ${category} and overall mood is ${mood}.
 ${genderHint}
 ${interestsHint}
+
+${languageInstruction}
 
 ${ageInstruction}
 
@@ -30,10 +37,11 @@ Return JSON in this exact shape:
 {
   "title": "Story Title",
   "narrator_intro": "One warm, inviting sentence Nani says before the story begins — gentle, grandmother-like, may use 'kanna' or 'bangaram' naturally, loving and welcoming.",
+  "language": "${language}",
   "paragraphs": [
     {
       "text": "3-4 short, simple sentences of story content. Rich sensory language. Easy words.",
-      "scene_description": "A brief visual description of what is happening (used for illustration).",
+      "scene_description": "A brief visual description in English of what is happening (used for illustration).",
       "mood": "happy|magical|calm|exciting|tense",
       "emotion": {
         "state": "idle|happy|wonder|excited|concerned|sleepy",
@@ -48,7 +56,7 @@ End with a gentle, comforting conclusion that helps a child drift off to sleep. 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
-      system: 'You are a master children\'s storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. Nani naturally uses warm South Indian endearments like "kanna" and "bangaram" — use them sparingly (once or twice per story) at emotionally warm moments, never in every sentence. For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.',
+      system: `You are a master children's storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. Nani naturally uses warm South Indian endearments like "kanna" and "bangaram" — use them sparingly (once or twice per story) at emotionally warm moments, never in every sentence. For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. ${isTelugu ? 'You are fluent in Telugu. When asked to write in Telugu, write beautiful, simple Telugu in Telugu script suitable for young children. Keep sentences short and warm.' : ''} CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.`,
       messages: [{ role: 'user', content: userPrompt }],
     });
 

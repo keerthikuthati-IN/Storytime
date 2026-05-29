@@ -126,6 +126,7 @@ export interface CachedStory {
   category: string;
   mood: string;
   narratorId: string;
+  language?: string;
   cachedAt: number; // Date.now()
 }
 

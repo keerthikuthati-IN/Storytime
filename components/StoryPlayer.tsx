@@ -20,7 +20,7 @@ interface StoryPlayerProps {
   narrator: Narrator;
   storyId: string;
   fromCache: boolean;
-  storyMeta: { title: string; category: string; mood: string; narratorId: string };
+  storyMeta: { title: string; category: string; mood: string; narratorId: string; language?: string };
   onEnd: () => void;
 }
 
@@ -121,6 +121,9 @@ function MoodBackground({ mood }: { mood: StoryMood }) {
 }
 
 export default function StoryPlayer({ story, narrator, storyId, fromCache, storyMeta, onEnd }: StoryPlayerProps) {
+  // Resolved once — stable for the lifetime of this player instance
+  const storyLanguage = (storyMeta.language ?? story.language ?? 'english') as 'english' | 'telugu';
+
   // Lift story prop → local state so it can be replaced during regeneration
   const [currentStory, setCurrentStory] = useState<GeneratedStory>(story);
 
@@ -149,6 +152,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const currentPara: StoryParagraph | null = paraIndex >= 0 ? currentStory.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';
   const totalSlides = currentStory.paragraphs.length;
+  // Resolved from storyMeta or story itself; falls back to storyLanguage
 
   // ── TTS (Sarvam primary, Web Speech fallback) ──
   const { speak, stop, prefetch } = useTTS(setSpeaking);
@@ -165,7 +169,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       return;
     }
     // 2. Fetch from Sarvam API
-    const base64 = await prefetch(text, 'english');
+    const base64 = await prefetch(text, storyLanguage);
     if (base64) {
       audioCacheRef.current.set(paraIdx, base64);
       setTTSAudio(key, base64); // fire-and-forget persist
@@ -196,9 +200,10 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     // 2. Ask the server to build a child-safe Pollinations URL
     try {
+      const storyTitle = currentStory.title;
       const body = title && !sceneDesc
-        ? { title, mood }                                     // portrait mode
-        : { scene_description: sceneDesc, mood };             // scene mode
+        ? { title, mood }                                              // portrait mode
+        : { scene_description: sceneDesc, mood, story_title: storyTitle }; // scene mode
       const res = await fetch('/api/stories/illustrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -332,7 +337,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
       const cached = audioCacheRef.current.get(-1);
       if (!cached) setTtsLoading(true);
-      speak(currentStory.narrator_intro, 'english', () => {
+      speak(currentStory.narrator_intro, storyLanguage, () => {
         setTimeout(() => setParaIndex(0), 400);
       }, cached);
 
@@ -353,7 +358,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
       const cached = audioCacheRef.current.get(paraIndex);
       if (!cached) setTtsLoading(true);
-      speak(para.text, 'english', () => {
+      speak(para.text, storyLanguage, () => {
         if (paraIndex < totalSlides - 1) {
           setTimeout(() => setParaIndex(p => p + 1), 600);
         } else {
@@ -377,7 +382,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       }
       const text = paraIndex === -1 ? currentStory.narrator_intro : currentStory.paragraphs[paraIndex]?.text ?? '';
       const cached = audioCacheRef.current.get(paraIndex);
-      speak(text, 'english', () => {
+      speak(text, storyLanguage, () => {
         if (paraIndex === -1) {
           setTimeout(() => setParaIndex(0), 400);
         } else if (paraIndex < totalSlides - 1) {

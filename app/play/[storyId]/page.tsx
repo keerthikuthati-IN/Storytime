@@ -117,6 +117,7 @@ export default function PlayPage({ params }: PageProps) {
   const category = searchParams.get('category') ?? 'Adventure';
   const mood = searchParams.get('mood') ?? 'happy';
   const narratorId = searchParams.get('narrator') ?? 'nana-luna';
+  const language = searchParams.get('language') ?? 'english';
 
   const [story, setStory] = useState<GeneratedStory | null>(null);
   const [loading, setLoading] = useState(true);
@@ -184,7 +185,8 @@ export default function PlayPage({ params }: PageProps) {
           narrator!.personality,
           ageGroup,
           profile?.gender,
-          profile?.favouriteCategories
+          profile?.favouriteCategories,
+          language,
         );
 
         setCachedStory(decodeURIComponent(storyId), {
@@ -193,6 +195,7 @@ export default function PlayPage({ params }: PageProps) {
           category,
           mood,
           narratorId,
+          language,
           cachedAt: Date.now(),
         });
 
@@ -289,7 +292,7 @@ export default function PlayPage({ params }: PageProps) {
       narrator={narrator}
       storyId={decodeURIComponent(storyId)}
       fromCache={fromCache}
-      storyMeta={{ title, category, mood, narratorId }}
+      storyMeta={{ title, category, mood, narratorId, language }}
       onEnd={() => router.push('/my-stories')}
     />
   );
