@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
 Age group guidance: ${ageGuidance}
 
-IMPORTANT LANGUAGE RULE: Return EXACTLY 2 Telugu/Indian stories and EXACTLY 8 English/Western stories. No more, no less. Mark the 2 Telugu stories with "language": "telugu" and all English stories with "language": "english".
+IMPORTANT LANGUAGE RULE: Return either 1 or 2 Telugu/Indian stories (choose randomly each time — vary it naturally) and the remaining stories as English/Western, for a total of 10. Mark Telugu stories with "language": "telugu" and English stories with "language": "english".
 
 Western classics to draw from:
 Goldilocks and the Three Bears, The Three Little Pigs, Cinderella, Snow White, Sleeping Beauty, Jack and the Beanstalk, Little Red Riding Hood, Rapunzel, Hansel and Gretel, The Ugly Duckling, The Tortoise and the Hare, The Lion and the Mouse, Rumpelstiltskin, Thumbelina, Puss in Boots, The Gingerbread Man, Beauty and the Beast, The Little Mermaid, Pinocchio, Peter Pan, Winnie the Pooh and the Honey Tree, Curious George, The Velveteen Rabbit, Bambi, Dumbo, The Jungle Book, Aladdin, Ali Baba and the Forty Thieves, Sinbad the Sailor.

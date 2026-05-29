@@ -40,20 +40,18 @@ export async function POST(req: Request) {
     const moodHint = MOOD_HINT[mood] ?? MOOD_HINT.calm;
 
     // ── Safety wrapper + style — non-negotiable, always prepended ──────────
-    // Ghibli-inspired warmth + Indian animation richness = soft, dreamy,
-    // culturally resonant illustrations that feel timeless and child-safe.
+    // Simple flat-cartoon style: renders faster on flux-schnell, stays clear
+    // and uncluttered, and is highly engaging for children aged 0–6.
     const safePrefix = [
-      "children's picture book illustration",
-      'Studio Ghibli inspired soft watercolor painting',
-      'warm Indian folk art aesthetic',
-      'rich jewel-toned pastels with golden ambient glow',
-      'hand-painted dreamy quality',
-      'soft gradients and warm color palette',
-      'gentle and calm',
-      'rounded friendly shapes and expressive faces',
+      "simple children's picture book illustration",
+      'flat cartoon style',
+      'bold clean outlines',
+      'bright cheerful colors',
+      'simple clean background',
+      'rounded friendly shapes and big expressive faces',
+      'fun and engaging for young children',
       'safe for children aged 0 to 6',
       'no text no words',
-      'simple clean composition',
       'no violence no blood no horror no scary elements',
       'no weapons no monsters no nightmares no frightening imagery',
     ].join(', ');
@@ -66,12 +64,11 @@ export async function POST(req: Request) {
       // Generates the widely-recognised look of the story's protagonist
       // (Aladdin in blue vest + fez, Cinderella in blue gown, etc.)
       contentPrompt = [
-        `iconic character portrait from the beloved children's story "${title}"`,
-        'classic widely-recognizable appearance',
-        'friendly and warm expression',
-        'full body or bust portrait centered in frame',
-        'magical storybook setting',
-        'golden sparkles, ethereal glow',
+        `cartoon character from the children's story "${title}"`,
+        'classic recognizable appearance',
+        'friendly happy expression',
+        'full body centered in frame',
+        'simple colorful storybook background',
       ].join(', ');
       seed = hashCode(title + '_portrait');
     } else {
@@ -89,7 +86,7 @@ export async function POST(req: Request) {
 
     const imageUrl =
       `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-      `?width=512&height=768&seed=${seed}&nologo=true&enhance=true&model=flux`;
+      `?width=512&height=768&seed=${seed}&nologo=true&enhance=false&model=flux-schnell`;
 
     return NextResponse.json({ imageUrl });
   } catch (error) {

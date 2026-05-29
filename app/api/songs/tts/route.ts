@@ -8,18 +8,17 @@ import { NextResponse } from 'next/server';
 // en-IN candidates for elderly/caring/calm Nani character (test in order):
 //   suhani (current) → roopa → kavitha → rupali
 const SPEAKERS: Record<string, string> = {
-  'en-IN': 'kavitha', // calm, mature South Indian female — Nani character
-  'te-IN': 'neha',   // Telugu, expressive and emotional female
+  'en-IN': 'ritu',   // English stories
+  'te-IN': 'kavya',  // Telugu stories
 };
 
-// South Indian endearment words — spoken more slowly when present
-const ENDEARMENT_WORDS = ['kanna', 'bangaram', 'chinna', 'bujji', 'raja', 'amma', 'babu'];
-const ENDEARMENT_RE = new RegExp(`\\b(${ENDEARMENT_WORDS.join('|')})\\b`, 'i');
+const PACE: Record<string, number> = {
+  telugu:  0.82,
+  english: 0.80,
+};
 
-function getPace(text: string, language: string): number {
-  // Slow down slightly when the text contains an endearment word — warm, unhurried delivery
-  if (ENDEARMENT_RE.test(text)) return language === 'telugu' ? 0.72 : 0.70;
-  return language === 'telugu' ? 0.82 : 0.80;
+function getPace(language: string): number {
+  return PACE[language] ?? 0.80;
 }
 
 const LANG_CODE: Record<string, string> = {
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
       inputs: [text],
       target_language_code: langCode,
       speaker,
-      pace:                  getPace(text, language), // slower on endearment words = warm, unhurried
+      pace:                  getPace(language),
       speech_sample_rate:    22050,
       enable_preprocessing:  true,
       model:                 'bulbul:v3',

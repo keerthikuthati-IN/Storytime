@@ -136,6 +136,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const [regenerating, setRegenerating]   = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [illustrations, setIllustrations] = useState<Record<number, string>>({});
+  // Ref mirror of illustrations — used inside speak() callbacks which close over stale state
+  const illustrationsRef = useRef<Record<number, string>>({});
   const [showIllustrations, setShowIllustrations] = useState(() => {
     const p = getProfile();
     return p ? getAgeGroup(p.age) !== 'newborn' : true;
@@ -210,11 +212,29 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         body: JSON.stringify(body),
       });
       const { imageUrl } = await res.json() as { imageUrl?: string };
-      if (!imageUrl) return;
+      if (!imageUrl) {
+        illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
+        return;
+      }
 
-      // 3. Fetch the actual image, convert to data URL, cache in IndexedDB
-      const imgRes = await fetch(imageUrl);
-      if (!imgRes.ok) return;
+      // 3. Fetch the actual image with a 12 s timeout.
+      // On slow mobile connections, Pollinations can hang indefinitely without a timeout,
+      // permanently blocking the illustrationFetchedRef entry and preventing any retry.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12_000);
+      let imgRes: Response;
+      try {
+        imgRes = await fetch(imageUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+      } catch {
+        clearTimeout(timeoutId);
+        illustrationFetchedRef.current.delete(paraIdx); // timeout/network error → allow retry
+        return;
+      }
+      if (!imgRes.ok) {
+        illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
+        return;
+      }
       const blob = await imgRes.blob();
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -225,9 +245,9 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
       setIllustration(key, dataUrl); // persist for instant replay
     } catch {
-      // Silently fail — mood gradient shows as fallback
+      illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
     }
-  }, [storyId]);
+  }, [storyId, currentStory.title]);
 
   // ── Music ──────────────────────────────────────
   const startMusic = useCallback(async (mood: StoryMood) => {
@@ -239,7 +259,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       setTimeout(() => howlRef.current?.unload(), 700);
     }
     currentMoodRef.current = mood;
-    const src = getAudioForMood(mood);
+    const src = getAudioForMood(mood, storyId);
     howlRef.current = new Howl({
       src: [src], loop: true, volume: 0,
       onload()      { howlRef.current?.fade(0, MUSIC_VOLUME, 800); },
@@ -298,14 +318,18 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Pre-fetch intro character portrait + first paragraph illustration
+    // Pre-fetch intro portrait immediately, then stagger scene illustrations 1500 ms apart.
+    // 1500 ms spacing keeps only 1–2 Pollinations requests in-flight at once on mobile,
+    // preventing connection-pool exhaustion. All fire within the ~15 s intro TTS window.
     prefetchIllustration(-1, '', 'magical', currentStory.title);
-    if (currentStory.paragraphs[0]) {
-      const p0 = currentStory.paragraphs[0];
-      prefetchIllustration(0, p0.scene_description, p0.mood);
-    }
+    currentStory.paragraphs.forEach((p, i) => {
+      setTimeout(() => prefetchIllustration(i, p.scene_description, p.mood), i * 1500);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep illustrationsRef in sync so speak() callbacks can read current illustration state
+  useEffect(() => { illustrationsRef.current = illustrations; }, [illustrations]);
 
   // Clear loading indicator the moment TTS audio actually starts playing
   useEffect(() => {
@@ -360,7 +384,19 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       if (!cached) setTtsLoading(true);
       speak(para.text, storyLanguage, () => {
         if (paraIndex < totalSlides - 1) {
-          setTimeout(() => setParaIndex(p => p + 1), 600);
+          // Wait up to 3 s for the next scene's illustration before advancing.
+          // This creates a natural "page turn" pause and ensures the user sees
+          // each illustration rather than jumping to a blank scene.
+          const nextIdx = paraIndex + 1;
+          const deadline = Date.now() + 3000;
+          const tryAdvance = () => {
+            if (illustrationsRef.current[nextIdx] || Date.now() >= deadline || pausedRef.current) {
+              setTimeout(() => setParaIndex(p => p + 1), 300);
+            } else {
+              setTimeout(tryAdvance, 200);
+            }
+          };
+          tryAdvance();
         } else {
           setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
         }
@@ -541,6 +577,16 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     );
   }
 
+  // Walk back from paraIndex to find the nearest available illustration.
+  // Gives continuity: previous scene (or portrait) stays visible until the new one arrives.
+  const displayParaIdx = (() => {
+    for (let i = paraIndex; i >= -1; i--) {
+      if (illustrations[i] != null) return i;
+    }
+    return null;
+  })();
+  const displayIllus = displayParaIdx != null ? illustrations[displayParaIdx] : null;
+
   return (
     <div className="relative flex flex-col h-screen overflow-hidden">
 
@@ -600,11 +646,28 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
-        {/* Illustration — crossfades on each paragraph; -1 = character portrait */}
-        <AnimatePresence>
-          {showIllustrations && illustrations[paraIndex] && (
+        {/* Shimmer — shown when no illustration (not even portrait fallback) is ready yet */}
+        {showIllustrations && !displayIllus && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            style={{ zIndex: 4, overflow: 'hidden' }}
+          >
             <motion.div
-              key={`illus-${paraIndex}`}
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%)' }}
+              animate={{ x: ['-100%', '100%'] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+            />
+          </motion.div>
+        )}
+
+        {/* Illustration — shows best available; crossfades when a new scene image arrives.
+            Key changes only when displayParaIdx changes, so the previous illustration
+            stays on screen (no blank gap) while Pollinations loads the next one. */}
+        <AnimatePresence>
+          {showIllustrations && displayIllus && (
+            <motion.div
+              key={`illus-${displayParaIdx}`}
               className="absolute inset-0"
               style={{ zIndex: 5 }}
               initial={{ opacity: 0 }}
@@ -615,7 +678,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
               <div
                 className="absolute inset-0"
                 style={{
-                  backgroundImage: `url(${illustrations[paraIndex]})`,
+                  backgroundImage: `url(${displayIllus})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center top',
                 }}
@@ -623,6 +686,22 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* "Painting scene" badge — pulses while the current scene's illustration is generating.
+            Disappears the moment illustrations[paraIndex] is set. */}
+        {showIllustrations && paraIndex >= 0 && !illustrations[paraIndex] && (
+          <motion.div
+            className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5
+                       bg-black/30 backdrop-blur-sm text-white text-xs font-nunito
+                       px-3 py-1.5 rounded-full pointer-events-none select-none"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <span>✨</span>
+            <span>Painting scene…</span>
+          </motion.div>
+        )}
       </div>
 
       {/* ── Content pane — bottom 40% ── */}
