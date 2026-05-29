@@ -5,8 +5,10 @@ import { NextResponse } from 'next/server';
 // Add to .env.local: SARVAM_API_KEY=your_key_here
 
 // Speaker voices per language (bulbul:v3)
+// en-IN candidates for elderly/caring/calm Nani character (test in order):
+//   suhani (current) → roopa → kavitha → rupali
 const SPEAKERS: Record<string, string> = {
-  'en-IN': 'ishita', // warm, gentle female — recommended en-IN voice (bulbul:v3)
+  'en-IN': 'suhani', // "suhani" = pleasant/soothing in Hindi — best match for Nani
   'te-IN': 'neha',   // Telugu, expressive and emotional female
 };
 
@@ -34,7 +36,7 @@ export async function POST(req: Request) {
       inputs: [text],
       target_language_code: langCode,
       speaker,
-      pace:                  language === 'telugu' ? 0.85 : 0.88,
+      pace:                  language === 'telugu' ? 0.82 : 0.80, // slower pace = calm elderly cadence
       speech_sample_rate:    22050,
       enable_preprocessing:  true,
       model:                 'bulbul:v3',
