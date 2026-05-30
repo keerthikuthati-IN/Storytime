@@ -18,6 +18,8 @@ import {
 import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 import { getDefaultNarrator } from '@/lib/narrators';
 import BottomNav from '@/components/BottomNav';
+import NaniAvatar from '@/components/NaniAvatar';
+import KathaboxLogo from '@/components/KathaboxLogo';
 
 const LIKED_STORIES_KEY = 'storytime_liked_objects';
 
@@ -58,9 +60,9 @@ function DailyStoryCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 60, scale: 0.85, rotate: -2 }}
-      animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
-      transition={{ delay: index * 0.12, type: 'spring', stiffness: 320, damping: 24 }}
+      initial={{ opacity: 0, y: 50, scale: 0.15 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: index * 0.15, type: 'spring', stiffness: 380, damping: 22 }}
       onClick={onPlay}
       className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer active:scale-[0.98] transition-transform"
     >
@@ -121,7 +123,7 @@ function DailyStoryCard({
             {story.title}
           </h3>
           <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-base leading-none">{narrator.emoji}</span>
+            <NaniAvatar size={20} animate="none" />
             <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
           </div>
         </div>
@@ -139,7 +141,6 @@ function DailyStoryCard({
 // ── Kathabox Loading State ─────────────────────────────────────────────────
 
 function KathaboxLoading({ readyCount }: { readyCount: number }) {
-  const stars = ['✨', '✨ ✨', '✨ ✨ ✨'];
   const messages = [
     'Nani is preparing your stories, kanna…',
     'One story is ready! Two more coming…',
@@ -152,65 +153,36 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
       animate={{ opacity: 1 }}
       className="flex flex-col items-center justify-center py-10 px-6"
     >
-      {/* Nani */}
-      <motion.div
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        style={{ fontSize: 56 }}
-      >
-        🧓
-      </motion.div>
+      {/* Nani portrait */}
+      <NaniAvatar size={80} animate="pulse" />
 
       <motion.p
         key={readyCount}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
-        className="font-nunito text-sm text-gray-500 text-center mt-3 mb-6 leading-relaxed"
+        className="font-nunito text-sm text-gray-500 text-center mt-3 mb-5 leading-relaxed"
       >
         {messages[readyCount] ?? messages[0]}
       </motion.p>
 
-      {/* Kathabox */}
+      {/* Kathabox styled text — stories pop out of this */}
       <motion.div
-        animate={readyCount < 3 ? {
-          rotate: [0, -2, 2, -1, 1, 0],
-          scale: [1, 1.04, 1],
-        } : { scale: [1, 1.06, 1] }}
-        transition={{
-          duration: readyCount < 3 ? 1.2 : 2,
-          repeat: Infinity,
-          repeatDelay: readyCount < 3 ? 2.5 : 0,
-          ease: 'easeInOut',
-        }}
-        style={{ fontSize: 64 }}
-        className="relative"
+        animate={readyCount < 3 ? { scale: [1, 1.05, 1] } : { scale: [1, 1.03, 1] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
       >
-        📦
-        {/* Sparkles around the box */}
-        {readyCount < 3 && (
-          <motion.span
-            className="absolute -top-2 -right-2 text-base"
-            animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
-            transition={{ duration: 1.5, repeat: Infinity, delay: 0.8 }}
-          >
-            ✨
-          </motion.span>
-        )}
+        <KathaboxLogo size="lg" />
       </motion.div>
 
-      {/* Progress stars */}
+      {/* Progress */}
       <motion.p
-        key={`stars-${readyCount}`}
-        initial={{ opacity: 0, scale: 0.8 }}
+        key={`progress-${readyCount}`}
+        initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: 'spring', stiffness: 300 }}
-        className="font-nunito text-xl mt-3 mb-1 tracking-widest"
+        className="font-nunito text-xs text-gray-400 mt-3"
       >
-        {stars[readyCount] ?? ''}
-      </motion.p>
-      <p className="font-nunito text-xs text-gray-300">
         {readyCount} of 3 stories ready
-      </p>
+      </motion.p>
     </motion.div>
   );
 }
@@ -224,15 +196,10 @@ function TomorrowGlimpse({ teasers }: { teasers: StoryTeaser[] }) {
     <div className="mt-8 mb-2">
       {/* Closed Kathabox header */}
       <div className="flex flex-col items-center mb-4">
-        <motion.div
-          animate={{ opacity: [0.6, 0.9, 0.6] }}
-          transition={{ duration: 3, repeat: Infinity }}
-          style={{ fontSize: 36 }}
-          className="relative"
-        >
-          📦
-          <span className="absolute -bottom-1 -right-1 text-xs">🔒</span>
-        </motion.div>
+        <div className="relative">
+          <KathaboxLogo size="sm" muted />
+          <span className="absolute -top-1 -right-3 text-xs">🔒</span>
+        </div>
         <p className="font-baloo font-bold text-sm text-gray-400 mt-2">
           Tomorrow&apos;s Kathabox opens at sunrise 🌅
         </p>
@@ -338,12 +305,12 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 mb-4"
+            className="flex flex-col items-start gap-1 mb-4"
           >
-            <span style={{ fontSize: 22 }}>📦</span>
             <p className="font-nunito text-xs text-gray-400 font-semibold">
-              Today&apos;s stories from your Kathabox
+              Today&apos;s stories from your
             </p>
+            <KathaboxLogo size="sm" />
           </motion.div>
         )}
       </AnimatePresence>

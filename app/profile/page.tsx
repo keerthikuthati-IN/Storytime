@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { saveProfile, type ChildProfile, type AgeGroup } from '@/lib/storage';
 import { motion } from 'framer-motion';
 import { ArrowRight, Check } from 'lucide-react';
+import NaniAvatar from '@/components/NaniAvatar';
 
 const AGE_GROUPS: { group: AgeGroup; label: string; range: string; emoji: string; age: number }[] = [
   { group: 'newborn',       label: 'Newborn',       range: '0–1 yrs', emoji: '🌙', age: 0 },
@@ -66,9 +67,9 @@ export default function ProfilePage() {
           initial={{ scale: 0, rotate: -15 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 220, damping: 14 }}
-          className="text-7xl mb-4 inline-block"
+          className="mb-4 flex justify-center"
         >
-          🧓
+          <NaniAvatar size={112} animate="float" />
         </motion.div>
         <motion.h1
           initial={{ opacity: 0, y: 20 }}

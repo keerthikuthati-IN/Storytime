@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressBar from './ProgressBar';
+import NaniAvatar from './NaniAvatar';
 import type { GeneratedStory, StoryParagraph } from '@/lib/claude';
 import { generateStory } from '@/lib/claude';
 import type { Narrator } from '@/lib/narrators';
@@ -598,13 +599,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   if (regenerating) {
     return (
       <div className="h-screen fun-bg flex flex-col items-center justify-center text-center px-6">
-        <motion.div
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ fontSize: 80 }}
-        >
-          {narrator.emoji}
-        </motion.div>
+        <NaniAvatar size={96} animate="pulse" />
         <p className="font-baloo font-bold text-lg text-gray-700 mt-5">Weaving a new story…</p>
         <div className="flex gap-2 mt-4">
           {[0.1, 0.2, 0.3].map(d => (
@@ -827,7 +822,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
                       ))}
                     </motion.div>
                   )}
-                  <span className="text-base">{narrator.emoji}</span>
+                  <NaniAvatar size={22} animate="none" />
                   <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
                 </div>
 
@@ -920,8 +915,8 @@ function EndScreen({
       ))}
 
       <motion.div initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: 'spring', stiffness: 180, damping: 14 }} className="text-8xl mb-4 relative z-10">
-        {narrator.emoji}
+        transition={{ type: 'spring', stiffness: 180, damping: 14 }} className="mb-4 relative z-10 flex justify-center">
+        <NaniAvatar size={96} animate="float" />
       </motion.div>
       <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         className="font-baloo font-black text-4xl text-gray-700 mb-2 relative z-10">

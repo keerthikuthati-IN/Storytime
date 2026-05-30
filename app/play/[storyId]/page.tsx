@@ -10,6 +10,7 @@ import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
 import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
+import NaniAvatar from '@/components/NaniAvatar';
 
 interface PageProps {
   params: Promise<{ storyId: string }>;
@@ -262,14 +263,9 @@ export default function PlayPage({ params }: PageProps) {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: 180, damping: 18 }}
+            className="flex justify-center"
           >
-            <motion.div
-              animate={{ scale: [1, 1.06, 1] }}
-              transition={{ duration: 3.8, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ fontSize: 120, filter: 'drop-shadow(0 8px 32px rgba(0,0,0,0.12))' }}
-            >
-              🧓
-            </motion.div>
+            <NaniAvatar size={120} animate="pulse" />
           </motion.div>
 
           <motion.h2

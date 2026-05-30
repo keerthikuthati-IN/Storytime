@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getProfile } from '@/lib/storage';
+import NaniAvatar from '@/components/NaniAvatar';
 
 export default function Home() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function Home() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-cream">
       <div className="text-center">
-        <div className="text-6xl mb-4 animate-bounce_gentle">🧓</div>
+        <div className="mb-4 flex justify-center"><NaniAvatar size={72} animate="pulse" /></div>
         <p className="font-nunito text-coral font-bold text-lg">Loading Kathabox...</p>
       </div>
     </div>
