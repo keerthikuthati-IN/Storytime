@@ -8,7 +8,6 @@ import { generateStory, type GeneratedStory } from '@/lib/claude';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
-import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
 import NaniAvatar from '@/components/NaniAvatar';
 
@@ -209,30 +208,13 @@ export default function PlayPage({ params }: PageProps) {
           });
         }
 
-        // ── Phase 2: pre-load only portrait + first 2 scenes ──────────────────
-        // We no longer block on all illustrations. The StoryPlayer "Book Cover"
-        // intro slide (~15s of Nani's narrator_intro TTS) gives ample time for
-        // Scene 0 to load, and the double look-ahead loads the rest during narration.
-        setLoadingPhase('illustrations');
-        const sid = decodeURIComponent(storyId);
+        // ── Phase 2: start immediately — StoryPlayer handles all illustrations ──
+        // HuggingFace takes 20–60s per image, so we don't block here at all.
+        // StoryPlayer fires all illustrations on mount with a 90s timeout.
+        // The Book Cover intro slide (~15s TTS) gives the first scenes time to load.
         setIllusTotal(storyData.paragraphs.length);
-
-        const p0 = storyData.paragraphs[0];
-        const p1 = storyData.paragraphs[1];
-
-        const [portraitUrl, scene0Url, scene1Url] = await Promise.all([
-          fetchIllustrationDataUrl(sid, -1, storyData.title, 'magical', storyData.title, 8_000).catch(() => null),
-          p0 ? fetchIllustrationDataUrl(sid, 0, p0.scene_description, p0.mood, storyData.title, 8_000).catch(() => null) : null,
-          p1 ? fetchIllustrationDataUrl(sid, 1, p1.scene_description, p1.mood, storyData.title, 10_000).catch(() => null) : null,
-        ]);
-
-        const initialIllus: Record<number, string> = {};
-        if (portraitUrl) initialIllus[-1] = portraitUrl;
-        if (scene0Url)   initialIllus[0]  = scene0Url;
-        if (scene1Url)   initialIllus[1]  = scene1Url;
-        setIllusReady(Object.keys(initialIllus).length);
-
-        setInitialIllustrations(initialIllus);
+        setIllusReady(0);
+        setInitialIllustrations({});
         setStory(storyData);
         setFromCache(isCache);
       } catch {

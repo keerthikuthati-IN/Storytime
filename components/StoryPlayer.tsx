@@ -311,7 +311,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         : { scene_description: sceneDesc, mood, story_title: storyTitle };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25_000);
+      const timeoutId = setTimeout(() => controller.abort(), 90_000);
       let res: Response;
       try {
         res = await fetch('/api/stories/illustrate', {
