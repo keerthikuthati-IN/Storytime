@@ -10,6 +10,7 @@ import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
 import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
 import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
+import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 import NaniAvatar from '@/components/NaniAvatar';
 
 interface PageProps {
@@ -210,13 +211,17 @@ export default function PlayPage({ params }: PageProps) {
           });
         }
 
-        // ── Phase 2: start immediately — StoryPlayer handles all illustrations ──
-        // HuggingFace takes 20–60s per image, so we don't block here at all.
-        // StoryPlayer fires all illustrations on mount with a 90s timeout.
-        // The Book Cover intro slide (~15s TTS) gives the first scenes time to load.
+        // ── Phase 2: fetch cover illustration before mounting StoryPlayer ──
+        // Claude SVG generation takes ~3–5s — short enough to wait for.
+        // The cover is pre-loaded so the user sees an illustration from frame 1.
+        setLoadingPhase('illustrations');
+        const coverDataUrl = await fetchIllustrationDataUrl(
+          decodeURIComponent(storyId), -1, storyData.title, 'magical', storyData.title, 20_000
+        ).catch(() => null);
+
         setIllusTotal(storyData.paragraphs.length);
         setIllusReady(0);
-        setInitialIllustrations({});
+        setInitialIllustrations(coverDataUrl ? { [-1]: coverDataUrl } : {});
         setStory(storyData);
         setFromCache(isCache);
 

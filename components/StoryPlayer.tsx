@@ -302,58 +302,44 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       return;
     }
 
-    // 2. Call the API with retry — 503 means HuggingFace model is cold-starting (20–60s)
+    // 2. Call the Claude SVG illustration API (~3–5s, no cold start)
     try {
       const storyTitle = currentStory.title;
       const body = title && !sceneDesc
         ? { title, mood }
         : { scene_description: sceneDesc, mood, story_title: storyTitle };
 
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90_000);
-        let res: Response;
-        try {
-          res = await fetch('/api/stories/illustrate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-        } catch {
-          clearTimeout(timeoutId);
-          if (attempt < 2) {
-            await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
-            continue;
-          }
-          illustrationFetchedRef.current.delete(paraIdx);
-          return;
-        }
-
-        if ((res.status === 503 || res.status === 502) && attempt < 2) {
-          // 503 = model cold-starting, 502 = server timeout — both warrant a retry
-          await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
-          continue;
-        }
-
-        if (!res.ok) {
-          console.warn('Illustration failed para', paraIdx, res.status);
-          illustrationFetchedRef.current.delete(paraIdx);
-          return;
-        }
-        const { dataUrl } = await res.json() as { dataUrl?: string };
-        if (!dataUrl) {
-          illustrationFetchedRef.current.delete(paraIdx);
-          return;
-        }
-        setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
-        setIllustration(key, dataUrl); // persist for instant replay
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20_000);
+      let res: Response;
+      try {
+        res = await fetch('/api/stories/illustrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch {
+        clearTimeout(timeoutId);
+        illustrationFetchedRef.current.delete(paraIdx);
         return;
       }
-      illustrationFetchedRef.current.delete(paraIdx);
+
+      if (!res.ok) {
+        console.warn('Illustration failed para', paraIdx, res.status);
+        illustrationFetchedRef.current.delete(paraIdx);
+        return;
+      }
+      const { dataUrl } = await res.json() as { dataUrl?: string };
+      if (!dataUrl) {
+        illustrationFetchedRef.current.delete(paraIdx);
+        return;
+      }
+      setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
+      setIllustration(key, dataUrl); // persist for instant replay
     } catch {
-      illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
+      illustrationFetchedRef.current.delete(paraIdx);
     }
   }, [storyId, currentStory.title]);
 
