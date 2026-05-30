@@ -161,20 +161,38 @@ interface DailySlot {
   language: 'english' | 'telugu';
 }
 
-function pickDailySlots(): DailySlot[] {
+function pickDailySlots(profile: ChildProfile): DailySlot[] {
   const dateSeed = parseInt(todayDate().replace(/-/g, ''), 10);
-  const en = POPULAR_STORIES.english;
-  const te = POPULAR_STORIES.telugu;
+  const ageGroup = getAgeGroup(profile.age);
+  const favCats  = profile.favouriteCategories ?? [];
 
-  // Pick two different English stories for today using consecutive indices
-  const eIdx  = dateSeed % en.length;
-  const eIdx2 = (eIdx + 1) % en.length;
-  const tIdx  = dateSeed % te.length;
+  // English pool — filter to favorite categories; fall back to full list if too few matches
+  const enFavs = POPULAR_STORIES.english.filter(s => favCats.includes(s.category));
+  const en     = enFavs.length >= 2 ? enFavs : POPULAR_STORIES.english;
+
+  // Telugu pool — filter to Indian-culture favorites (Panchatantra, Krishna, Tenali, etc.)
+  const teFavs = POPULAR_STORIES.telugu.filter(s => favCats.includes(s.category));
+  const te     = teFavs.length >= 1 ? teFavs : POPULAR_STORIES.telugu;
+
+  // Age-appropriate moods — calm only for newborns, expanding with age
+  const moodsByAge: Record<string, string[]> = {
+    newborn:         ['calm'],
+    toddler:         ['calm', 'happy', 'magical'],
+    'early-learner': ['calm', 'happy', 'magical', 'exciting'],
+  };
+  const moods = moodsByAge[ageGroup] ?? [...MOODS];
+
+  // Include child's name in seed so siblings on the same device get different picks
+  const seed = dateSeed + (profile.name.charCodeAt(0) || 0);
+
+  const eIdx  = seed % en.length;
+  const eIdx2 = (seed + 3) % en.length; // +3 avoids collision even in small filtered pools
+  const tIdx  = seed % te.length;
 
   return [
-    { ...en[eIdx],  mood: MOODS[dateSeed % 4],       language: 'english' },
-    { ...en[eIdx2], mood: MOODS[(dateSeed + 1) % 4], language: 'english' },
-    { ...te[tIdx],  mood: MOODS[(dateSeed + 2) % 4], language: 'telugu' },
+    { ...en[eIdx],  mood: moods[seed % moods.length],           language: 'english' },
+    { ...en[eIdx2], mood: moods[(seed + 1) % moods.length],     language: 'english' },
+    { ...te[tIdx],  mood: moods[(seed + 2) % moods.length],     language: 'telugu'  },
   ];
 }
 
@@ -239,7 +257,7 @@ export async function generateDailyStories(
 ): Promise<DailyStoriesData> {
   const narrator = getDefaultNarrator(); // Nani
   const ageGroup = getAgeGroup(profile.age);
-  const slots = pickDailySlots();
+  const slots = pickDailySlots(profile);
   const date = todayDate();
   const stories: DailyStory[] = new Array(slots.length);
 
