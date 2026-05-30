@@ -187,51 +187,92 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
   );
 }
 
-// ── Tomorrow's Glimpse ─────────────────────────────────────────────────────
+// ── Locked Tomorrow Card ───────────────────────────────────────────────────
 
-function TomorrowGlimpse({ teasers }: { teasers: StoryTeaser[] }) {
-  if (teasers.length === 0) return null;
+function LockedStoryCard({
+  teaser,
+  index,
+  onTap,
+  tapped,
+}: {
+  teaser: StoryTeaser;
+  index: number;
+  onTap: () => void;
+  tapped: boolean;
+}) {
+  const langLabel = teaser.language === 'telugu' ? '🇮🇳 తెలుగు' : '🇬🇧 English';
+  const catStyle  = getCategoryStyle(teaser.category);
 
   return (
-    <div className="mt-8 mb-2">
-      {/* Closed Kathabox header */}
-      <div className="flex flex-col items-center mb-4">
-        <div className="relative">
-          <KathaboxLogo size="sm" muted />
-          <span className="absolute -top-1 -right-3 text-xs">🔒</span>
+    <motion.div
+      initial={{ opacity: 0, y: 40, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: index * 0.12, type: 'spring', stiffness: 300, damping: 24 }}
+      onClick={onTap}
+      className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer active:scale-[0.98] transition-transform"
+    >
+      {/* Blurred illustration pane */}
+      <div className="relative w-full overflow-hidden" style={{ height: 180 }}>
+
+        {/* Blurred gradient background — category colour bleeds through like a painting behind frosted glass */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(135deg, ${catStyle.from} 0%, ${catStyle.to} 100%)`,
+            filter: 'blur(12px) brightness(0.72)',
+            transform: 'scale(1.1)', // prevent blur edge bleed
+          }}
+        />
+
+        {/* Language badge — unblurred */}
+        <span className="absolute top-3 left-3 z-10 bg-black/40 backdrop-blur-sm text-white text-[10px] font-nunito font-bold px-2.5 py-1 rounded-full">
+          {langLabel}
+        </span>
+
+        {/* Lock icon — center */}
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
+            <span style={{ fontSize: 22 }}>🔒</span>
+          </div>
         </div>
-        <p className="font-baloo font-bold text-sm text-gray-400 mt-2">
-          Tomorrow&apos;s Kathabox opens at sunrise 🌅
-        </p>
+
+        {/* Category emoji — unblurred, bottom-center, gives genre hint */}
+        <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center">
+          <span style={{ fontSize: 40, opacity: 0.9 }}>{teaser.emoji}</span>
+        </div>
+
+        {/* "Opens tomorrow" toast — fades in when tapped */}
+        <AnimatePresence>
+          {tapped && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-3xl"
+            >
+              <p className="font-nunito font-bold text-white text-sm text-center px-4">
+                🌅 Opens tomorrow at sunrise
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Teaser chips */}
-      <div className="flex gap-3 justify-center">
-        {teasers.map((teaser, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 + i * 0.1 }}
-            className="flex-shrink-0 w-24 bg-white/50 rounded-2xl p-3 text-center border border-gray-100/60 backdrop-blur-sm"
-          >
-            <motion.div
-              animate={{ opacity: [0.4, 0.65, 0.4] }}
-              transition={{ duration: 3.5, repeat: Infinity, delay: i * 0.6 }}
-              className="text-2xl mb-1"
-            >
-              {teaser.emoji}
-            </motion.div>
-            <p className="font-nunito text-[11px] text-gray-400 font-bold leading-tight">
-              {teaser.category}
-            </p>
-            <p className="font-nunito text-[9px] text-gray-300 mt-0.5">
-              {teaser.language === 'telugu' ? 'తెలుగు' : 'English'}
-            </p>
-          </motion.div>
-        ))}
+      {/* Card footer */}
+      <div className="px-4 py-3 flex items-center justify-between">
+        <div className="flex-1 min-w-0 pr-3">
+          <p className="font-baloo font-bold text-sm text-gray-300 italic leading-tight">
+            Coming tomorrow…
+          </p>
+          <p className="font-nunito text-xs text-gray-300 mt-0.5">
+            {teaser.category}
+          </p>
+        </div>
+        <div className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 text-lg flex-shrink-0">
+          🔒
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -243,6 +284,7 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
   const [portraits, setPortraits] = useState<Record<string, string>>({});
   const [tomorrowTeaser, setTomorrowTeaser] = useState<StoryTeaser[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [tappedLocked, setTappedLocked] = useState<number | null>(null);
   // Guard against React StrictMode double-invocation of the effect
   const generatingRef = useRef(false);
 
@@ -300,6 +342,11 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
 
   const allReady = !generating && stories.length === 3;
 
+  function handleLockedTap(index: number) {
+    setTappedLocked(index);
+    setTimeout(() => setTappedLocked(null), 2000);
+  }
+
   return (
     <div className="px-5">
 
@@ -348,9 +395,49 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
         )}
       </AnimatePresence>
 
-      {/* Tomorrow's Glimpse */}
+      {/* Locked tomorrow cards — shown once today's stories + teasers are ready */}
       <AnimatePresence>
-        {allReady && <TomorrowGlimpse teasers={tomorrowTeaser} />}
+        {tomorrowTeaser.length > 0 && (
+          <motion.div
+            key="tomorrow-section"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-8 mb-2"
+          >
+            {/* Section divider */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-gray-100" />
+              <p className="font-nunito text-xs text-gray-400 font-semibold whitespace-nowrap">
+                ✨ Coming tomorrow
+              </p>
+              <div className="flex-1 h-px bg-gray-100" />
+            </div>
+
+            {/* Locked cards */}
+            <div className="flex flex-col gap-4">
+              {tomorrowTeaser.map((teaser, i) => (
+                <LockedStoryCard
+                  key={i}
+                  teaser={teaser}
+                  index={i}
+                  tapped={tappedLocked === i}
+                  onTap={() => handleLockedTap(i)}
+                />
+              ))}
+            </div>
+
+            {/* Sunrise banner */}
+            <motion.p
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="font-nunito text-xs text-gray-400 text-center mt-5 mb-2"
+            >
+              🌅 3 new stories unlock tomorrow at sunrise
+            </motion.p>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
