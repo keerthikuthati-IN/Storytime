@@ -422,12 +422,13 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Fire cover + scene 0 on mount only. Per-paragraph look-ahead (N+1, N+2) handles
-    // the rest during playback. kickOffIllustrations may have already cached in IndexedDB.
+    // Fire all illustrations on mount — the global queue + dedup in illustrationFetcher
+    // ensures max 1 Sonnet call in-flight and no duplicate API calls even if kickOff
+    // already enqueued the same keys.
     prefetchIllustration(-1, '', 'magical', currentStory.title);
-    if (currentStory.paragraphs[0]) {
-      prefetchIllustration(0, currentStory.paragraphs[0].scene_description, currentStory.paragraphs[0].mood);
-    }
+    currentStory.paragraphs.forEach((p, i) => {
+      prefetchIllustration(i, p.scene_description, p.mood);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

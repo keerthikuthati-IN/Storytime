@@ -10,7 +10,6 @@ import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
 import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
 import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
-import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 import NaniAvatar from '@/components/NaniAvatar';
 
 interface PageProps {
@@ -211,17 +210,11 @@ export default function PlayPage({ params }: PageProps) {
           });
         }
 
-        // ── Phase 2: fetch cover illustration before mounting StoryPlayer ──
-        // Claude SVG generation takes ~3–5s — short enough to wait for.
-        // The cover is pre-loaded so the user sees an illustration from frame 1.
-        setLoadingPhase('illustrations');
-        const coverDataUrl = await fetchIllustrationDataUrl(
-          decodeURIComponent(storyId), -1, storyData.title, 'magical', storyData.title, storyData.language, 60_000
-        ).catch(() => null);
-
+        // Illustrations load async inside StoryPlayer via the global queue.
+        // No blocking here — story starts playing immediately after story + TTS load.
         setIllusTotal(storyData.paragraphs.length);
         setIllusReady(0);
-        setInitialIllustrations(coverDataUrl ? { [-1]: coverDataUrl } : {});
+        setInitialIllustrations({});
         setStory(storyData);
         setFromCache(isCache);
 

@@ -224,21 +224,17 @@ function pickTomorrowTeaser(profile: ChildProfile, todayCategories: string[]): S
 
 // ── Illustration kick-off ──────────────────────────────────────────────────
 
-/** Fire all 10 scene illustrations + portrait for a story — fire-and-forget.
- *  Serialized: one request every 15s to stay within concurrent-connection limits
- *  when using Sonnet (~12-15s per SVG). Results cached in IndexedDB for instant replay. */
+/** Fire all scene illustrations + portrait for a story — fire-and-forget.
+ *  All requests are fired immediately; the global queue in illustrationFetcher
+ *  serializes them (max 1 Sonnet call in-flight at a time) and deduplication
+ *  ensures no duplicate API calls if other callers request the same key. */
 export function kickOffIllustrations(story: DailyStory): void {
   const { id, story: generated } = story;
   const lang = generated.language;
-  const requests = [
-    () => fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, lang, 90_000),
-    ...generated.paragraphs.map((p, i) =>
-      () => fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, lang, 90_000)
-    ),
-  ];
-  requests.forEach((fn, i) => {
-    setTimeout(() => fn().catch(() => null), i * 15_000);
-  });
+  fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, lang, 90_000).catch(() => null);
+  generated.paragraphs.forEach((p, i) =>
+    fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, lang, 90_000).catch(() => null)
+  );
 }
 
 // ── Daily generation ───────────────────────────────────────────────────────
