@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app/api/stories/illustrate/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}

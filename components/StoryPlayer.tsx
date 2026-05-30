@@ -331,8 +331,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           return;
         }
 
-        if (res.status === 503 && attempt < 2) {
-          // Model cold-starting — retry after delay
+        if ((res.status === 503 || res.status === 502) && attempt < 2) {
+          // 503 = model cold-starting, 502 = server timeout — both warrant a retry
           await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
           continue;
         }
@@ -737,20 +737,18 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
-        {/* Mood-specific floating emojis — only shown over AI illustrations so SceneCard is clearly visible as the picture placeholder */}
+        {/* Mood-specific floating emojis — always visible, these are the visual heartbeat of the story */}
         <AnimatePresence mode="wait">
-          {displayIllus && (
-            <motion.div
-              key={currentMood}
-              className="absolute inset-0 z-10 pointer-events-none"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.5 }}
-            >
-              <MoodParticles mood={currentMood} />
-            </motion.div>
-          )}
+          <motion.div
+            key={currentMood}
+            className="absolute inset-0 z-10 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5 }}
+          >
+            <MoodParticles mood={currentMood} />
+          </motion.div>
         </AnimatePresence>
 
         {/* Book Cover: story-specific emoji floaters — only during intro slide */}
@@ -806,28 +804,26 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
-        {/* Shimmer skeleton — warm parchment sweep while an illustration generates.
-            Shows only on story scenes (not on the cover/intro), and only when the
-            current scene has no illustration yet (including the 1-step-back fallback). */}
+        {/* "Nani is painting…" badge — small non-covering indicator at bottom of pane.
+            Floats above SceneCard and particles without hiding them. */}
         <AnimatePresence>
           {showIllustrations && paraIndex >= 0 && displayIllus == null && (
             <motion.div
-              key={`shimmer-${paraIndex}`}
-              className="absolute inset-0 illus-shimmer"
-              style={{ zIndex: 4 }}
+              key="painting-badge"
+              className="absolute bottom-4 left-0 right-0 z-20 flex justify-center pointer-events-none"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-1">
-                <motion.span
-                  style={{ fontSize: 28, opacity: 0.35 }}
-                  animate={{ opacity: [0.2, 0.5, 0.2] }}
-                  transition={{ duration: 1.8, repeat: Infinity }}
-                >🖌️</motion.span>
-                <span className="font-nunito text-[10px] text-white/50">Nani is painting the scene…</span>
-              </div>
+              <motion.div
+                animate={{ opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="bg-black/25 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1.5"
+              >
+                <span className="text-xs">🖌️</span>
+                <span className="font-nunito text-[10px] text-white/90">Nani is painting…</span>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

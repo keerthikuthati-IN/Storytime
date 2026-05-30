@@ -91,7 +91,7 @@ export async function POST(req: Request) {
 
     // HuggingFace Inference API — server-side fetch, no Turnstile, no queue limits
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60_000); // HF cold-start can be slow
+    const timeoutId = setTimeout(() => controller.abort(), 110_000); // extended for X-Wait-For-Model
 
     let hfRes: Response;
     try {
@@ -100,6 +100,7 @@ export async function POST(req: Request) {
         headers: {
           'Authorization': `Bearer ${hfKey}`,
           'Content-Type': 'application/json',
+          'X-Wait-For-Model': 'true', // queue request; HF waits for cold model internally (no 503)
         },
         body: JSON.stringify({
           inputs: prompt,

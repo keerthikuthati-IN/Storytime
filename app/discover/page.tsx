@@ -141,6 +141,7 @@ function DailyStoryCard({
 // ── Kathabox Loading State ─────────────────────────────────────────────────
 
 function KathaboxLoading({ readyCount }: { readyCount: number }) {
+  const isInitial = readyCount === 0;
   const messages = [
     'Nani is preparing your stories, kanna…',
     'One story is ready! Two more coming…',
@@ -150,36 +151,55 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="flex flex-col items-center justify-center py-10 px-6"
+      animate={{
+        opacity: 1,
+        paddingTop: isInitial ? 48 : 16,
+        paddingBottom: isInitial ? 40 : 12,
+      }}
+      transition={{ type: 'spring', stiffness: 160, damping: 22 }}
+      className="flex flex-col items-center px-6"
     >
-      {/* Nani portrait */}
-      <NaniAvatar size={80} animate="pulse" />
+      {/* Nani — hero size (160px) when no cards ready, shrinks to compact (72px) once cards arrive */}
+      <motion.div
+        animate={{ scale: isInitial ? 1 : 72 / 160 }}
+        transition={{ type: 'spring', stiffness: 160, damping: 22 }}
+        style={{ transformOrigin: 'top center', width: 160, height: 160, flexShrink: 0 }}
+      >
+        <NaniAvatar size={160} animate={isInitial ? 'float' : 'pulse'} />
+      </motion.div>
 
+      {/* Message */}
       <motion.p
         key={readyCount}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
-        className="font-nunito text-sm text-gray-500 text-center mt-3 mb-5 leading-relaxed"
+        className={`font-nunito text-gray-500 text-center leading-relaxed ${isInitial ? 'text-sm mt-4 mb-5' : 'text-xs mt-1 mb-3'}`}
       >
         {messages[readyCount] ?? messages[0]}
       </motion.p>
 
-      {/* Kathabox styled text — stories pop out of this */}
-      <motion.div
-        animate={readyCount < 3 ? { scale: [1, 1.05, 1] } : { scale: [1, 1.03, 1] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        <KathaboxLogo size="lg" />
-      </motion.div>
+      {/* KathaboxLogo — only shown while no cards are ready; exits when first card arrives */}
+      <AnimatePresence>
+        {isInitial && (
+          <motion.div
+            key="logo"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: [1, 1.05, 1] }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <KathaboxLogo size="lg" />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Progress */}
+      {/* Progress counter */}
       <motion.p
         key={`progress-${readyCount}`}
         initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: 'spring', stiffness: 300 }}
-        className="font-nunito text-xs text-gray-400 mt-3"
+        className="font-nunito text-xs text-gray-400 mt-2"
       >
         {readyCount} of 3 stories ready
       </motion.p>

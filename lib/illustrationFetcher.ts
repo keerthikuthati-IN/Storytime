@@ -51,8 +51,8 @@ export async function fetchIllustrationDataUrl(
         return null;
       }
 
-      if (res.status === 503 && attempt < 2) {
-        // Model cold-starting — wait and retry
+      if ((res.status === 503 || res.status === 502) && attempt < 2) {
+        // 503 = model cold-starting, 502 = server timeout — both warrant a retry
         await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
         continue;
       }
