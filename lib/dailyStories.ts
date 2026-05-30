@@ -207,24 +207,29 @@ function pickTomorrowTeaser(profile: ChildProfile, todayCategories: string[]): S
 // ── Illustration kick-off ──────────────────────────────────────────────────
 
 /** Fire all 15 scene illustrations + portrait for a story — fire-and-forget.
- *  Uses 90s timeout to cover HuggingFace cold-start latency (20–60s per image).
+ *  Priority: cover + paras 0-2 fire immediately (needed soonest).
+ *  Remaining paragraphs staggered 2s apart so HuggingFace isn't slammed.
  *  Results are cached in IndexedDB so replay is instant. */
 export function kickOffIllustrations(story: DailyStory): void {
   const { id, story: generated } = story;
-  // Portrait (paraIdx -1) — fires immediately
+  // Portrait + first 3 paragraphs — fire immediately (highest priority)
   fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, 90_000).catch(() => null);
-  // All 15 scenes — staggered 500ms apart so HuggingFace isn't slammed
-  generated.paragraphs.forEach((p, i) => {
+  [0, 1, 2].forEach(i => {
+    const p = generated.paragraphs[i];
+    if (p) fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, 90_000).catch(() => null);
+  });
+  // Remaining paragraphs — staggered 2s apart (lower urgency, background)
+  generated.paragraphs.slice(3).forEach((p, i) => {
     setTimeout(() => {
-      fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, 90_000).catch(() => null);
-    }, i * 500);
+      fetchIllustrationDataUrl(id, i + 3, p.scene_description, p.mood, generated.title, 90_000).catch(() => null);
+    }, (i + 1) * 2000);
   });
 }
 
 // ── Daily generation ───────────────────────────────────────────────────────
 
 /**
- * Generate today's 3 stories sequentially (avoids Claude rate limits).
+ * Generate today's 3 stories in parallel (300ms stagger to reduce API burst).
  * Calls onStoryReady(story, index) as each one finishes so the UI can
  * show cards progressively rather than waiting for all 3.
  */
@@ -236,10 +241,13 @@ export async function generateDailyStories(
   const ageGroup = getAgeGroup(profile.age);
   const slots = pickDailySlots();
   const date = todayDate();
-  const stories: DailyStory[] = [];
+  const stories: DailyStory[] = new Array(slots.length);
 
-  for (let i = 0; i < slots.length; i++) {
-    const { title, category, mood, language } = slots[i];
+  await Promise.all(slots.map(async (slot, i) => {
+    // Small stagger so all 3 don't hit Claude simultaneously
+    if (i > 0) await new Promise<void>(r => setTimeout(r, i * 300));
+
+    const { title, category, mood, language } = slot;
     const storyId = `daily-${date}-${i}`;
 
     const generated = await generateStory(
@@ -267,7 +275,7 @@ export async function generateDailyStories(
       language,
     };
 
-    stories.push(dailyStory);
+    stories[i] = dailyStory;
 
     // Persist to story cache so play page finds it via getCachedStory()
     setCachedStory(storyId, {
@@ -284,7 +292,7 @@ export async function generateDailyStories(
 
     // Kick off illustrations immediately after each story text is ready
     kickOffIllustrations(dailyStory);
-  }
+  }));
 
   const tomorrowTeaser = pickTomorrowTeaser(profile, slots.map((s: DailySlot) => s.category));
 

@@ -302,42 +302,56 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       return;
     }
 
-    // 2. Call the API — server fetches from Pollinations and returns a data URL directly.
-    //    The 25s timeout covers the full round-trip including server-side generation.
+    // 2. Call the API with retry — 503 means HuggingFace model is cold-starting (20–60s)
     try {
       const storyTitle = currentStory.title;
       const body = title && !sceneDesc
         ? { title, mood }
         : { scene_description: sceneDesc, mood, story_title: storyTitle };
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90_000);
-      let res: Response;
-      try {
-        res = await fetch('/api/stories/illustrate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-      } catch {
-        clearTimeout(timeoutId);
-        illustrationFetchedRef.current.delete(paraIdx); // timeout → allow retry
-        return;
-      }
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90_000);
+        let res: Response;
+        try {
+          res = await fetch('/api/stories/illustrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+        } catch {
+          clearTimeout(timeoutId);
+          if (attempt < 2) {
+            await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
+            continue;
+          }
+          illustrationFetchedRef.current.delete(paraIdx);
+          return;
+        }
 
-      if (!res.ok) {
-        illustrationFetchedRef.current.delete(paraIdx); // server error → allow retry
+        if (res.status === 503 && attempt < 2) {
+          // Model cold-starting — retry after delay
+          await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
+          continue;
+        }
+
+        if (!res.ok) {
+          console.warn('Illustration failed para', paraIdx, res.status);
+          illustrationFetchedRef.current.delete(paraIdx);
+          return;
+        }
+        const { dataUrl } = await res.json() as { dataUrl?: string };
+        if (!dataUrl) {
+          illustrationFetchedRef.current.delete(paraIdx);
+          return;
+        }
+        setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
+        setIllustration(key, dataUrl); // persist for instant replay
         return;
       }
-      const { dataUrl } = await res.json() as { dataUrl?: string };
-      if (!dataUrl) {
-        illustrationFetchedRef.current.delete(paraIdx);
-        return;
-      }
-      setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
-      setIllustration(key, dataUrl); // persist for instant replay
+      illustrationFetchedRef.current.delete(paraIdx);
     } catch {
       illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
     }
@@ -356,6 +370,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     const src = getAudioForMood(mood, storyId);
     howlRef.current = new Howl({
       src: [src], loop: true, volume: 0,
+      html5: true, // stream static file instead of waiting for full Web Audio decode
       onload()      { howlRef.current?.fade(0, MUSIC_VOLUME, 800); },
       onloaderror() { /* audio file not present — skip silently */ },
     });
@@ -722,18 +737,20 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
-        {/* Mood-specific floating emojis */}
+        {/* Mood-specific floating emojis — only shown over AI illustrations so SceneCard is clearly visible as the picture placeholder */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={currentMood}
-            className="absolute inset-0 z-10 pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5 }}
-          >
-            <MoodParticles mood={currentMood} />
-          </motion.div>
+          {displayIllus && (
+            <motion.div
+              key={currentMood}
+              className="absolute inset-0 z-10 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.5 }}
+            >
+              <MoodParticles mood={currentMood} />
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* Book Cover: story-specific emoji floaters — only during intro slide */}
@@ -803,12 +820,13 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <div className="absolute bottom-6 left-0 right-0 flex justify-center">
+              <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-1">
                 <motion.span
                   style={{ fontSize: 28, opacity: 0.35 }}
                   animate={{ opacity: [0.2, 0.5, 0.2] }}
                   transition={{ duration: 1.8, repeat: Infinity }}
                 >🖌️</motion.span>
+                <span className="font-nunito text-[10px] text-white/50">Nani is painting the scene…</span>
               </div>
             </motion.div>
           )}

@@ -29,28 +29,42 @@ export async function fetchIllustrationDataUrl(
     : { scene_description: sceneDescOrTitle, mood, story_title: storyTitle };
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    let res: Response;
-    try {
-      res = await fetch('/api/stories/illustrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-    } catch {
-      clearTimeout(timeoutId);
-      return null;
+    // Retry up to 3 times — 503 means HuggingFace model is cold-starting (20–60s warm-up)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      let res: Response;
+      try {
+        res = await fetch('/api/stories/illustrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch {
+        clearTimeout(timeoutId);
+        if (attempt < 2) {
+          await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
+          continue;
+        }
+        return null;
+      }
+
+      if (res.status === 503 && attempt < 2) {
+        // Model cold-starting — wait and retry
+        await new Promise<void>(r => setTimeout(r, (attempt + 1) * 8000));
+        continue;
+      }
+
+      if (!res.ok) return null;
+      const { dataUrl } = await res.json() as { dataUrl?: string };
+      if (!dataUrl) return null;
+
+      setIllustration(key, dataUrl); // persist for instant replay
+      return dataUrl;
     }
-
-    if (!res.ok) return null;
-    const { dataUrl } = await res.json() as { dataUrl?: string };
-    if (!dataUrl) return null;
-
-    setIllustration(key, dataUrl); // persist for instant replay
-    return dataUrl;
+    return null;
   } catch {
     return null;
   }

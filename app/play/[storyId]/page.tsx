@@ -8,6 +8,7 @@ import { generateStory, type GeneratedStory } from '@/lib/claude';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
+import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
 import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
 import NaniAvatar from '@/components/NaniAvatar';
 
@@ -147,6 +148,7 @@ export default function PlayPage({ params }: PageProps) {
         src: [src],
         loop: true,
         volume: 0,
+        html5: true, // stream static file instead of waiting for full Web Audio decode
         onload() { if (mounted) howlRef.current?.fade(0, MUSIC_VOLUME * 1.2, 1000); },
         onloaderror() { /* audio not present — skip silently */ },
       });
@@ -217,6 +219,24 @@ export default function PlayPage({ params }: PageProps) {
         setInitialIllustrations({});
         setStory(storyData);
         setFromCache(isCache);
+
+        // Pre-warm narrator intro TTS in the background while loading screen shows.
+        // Populates IndexedDB so StoryPlayer finds it ready on mount — eliminates the
+        // ~2–5s silence before narration begins on first play.
+        const introKey = ttsCacheKey(decodeURIComponent(storyId), -1);
+        getTTSAudio(introKey).then(existing => {
+          if (existing) return; // already cached
+          fetch('/api/songs/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: storyData.narrator_intro, language }),
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (data?.audioBase64) setTTSAudio(introKey, data.audioBase64);
+            })
+            .catch(() => null);
+        });
       } catch {
         setError('Could not generate story. Please check your API key and connection.');
       } finally {
