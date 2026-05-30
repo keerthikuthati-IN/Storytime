@@ -30,8 +30,7 @@ const CATEGORIES = [
 
 const GENDERS = [
   { value: 'girl', label: 'Girl', emoji: '👧' },
-  { value: 'boy', label: 'Boy', emoji: '👦' },
-  { value: 'neutral', label: 'Any', emoji: '🧒' },
+  { value: 'boy',  label: 'Boy',  emoji: '👦' },
 ] as const;
 
 export default function EditProfilePage() {
