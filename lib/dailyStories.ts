@@ -206,14 +206,18 @@ function pickTomorrowTeaser(profile: ChildProfile, todayCategories: string[]): S
 
 // ── Illustration kick-off ──────────────────────────────────────────────────
 
-/** Fire all 15 scene illustrations + portrait for a story — fire-and-forget. */
+/** Fire all 15 scene illustrations + portrait for a story — fire-and-forget.
+ *  Uses 90s timeout to cover HuggingFace cold-start latency (20–60s per image).
+ *  Results are cached in IndexedDB so replay is instant. */
 export function kickOffIllustrations(story: DailyStory): void {
   const { id, story: generated } = story;
-  // Portrait (paraIdx -1)
-  fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, 15_000).catch(() => null);
-  // All 12 scenes
+  // Portrait (paraIdx -1) — fires immediately
+  fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, 90_000).catch(() => null);
+  // All 15 scenes — staggered 500ms apart so HuggingFace isn't slammed
   generated.paragraphs.forEach((p, i) => {
-    fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, 15_000).catch(() => null);
+    setTimeout(() => {
+      fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, 90_000).catch(() => null);
+    }, i * 500);
   });
 }
 

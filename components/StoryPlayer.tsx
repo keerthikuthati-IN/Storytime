@@ -412,9 +412,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Scenes already have a head start from play-page Phase 2 fire-and-forget.
-    // Use 300 ms stagger here — fast enough that all fire within 1.5 s of mount,
-    // spaced enough to not overwhelm Pollinations. No-ops for scenes already in IndexedDB.
+    // Fire all illustrations on mount — staggered 300ms so the server isn't slammed.
+    // kickOffIllustrations may have already cached some in IndexedDB; these are no-ops.
     prefetchIllustration(-1, '', 'magical', currentStory.title);
     currentStory.paragraphs.forEach((p, i) => {
       setTimeout(() => prefetchIllustration(i, p.scene_description, p.mood), i * 300);
