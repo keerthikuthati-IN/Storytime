@@ -224,23 +224,20 @@ function pickTomorrowTeaser(profile: ChildProfile, todayCategories: string[]): S
 
 // ── Illustration kick-off ──────────────────────────────────────────────────
 
-/** Fire all 15 scene illustrations + portrait for a story — fire-and-forget.
- *  Priority: cover + paras 0-2 fire immediately (needed soonest).
- *  Remaining paragraphs staggered 2s apart so HuggingFace isn't slammed.
- *  Results are cached in IndexedDB so replay is instant. */
+/** Fire all 10 scene illustrations + portrait for a story — fire-and-forget.
+ *  Serialized: one request every 15s to stay within concurrent-connection limits
+ *  when using Sonnet (~12-15s per SVG). Results cached in IndexedDB for instant replay. */
 export function kickOffIllustrations(story: DailyStory): void {
   const { id, story: generated } = story;
-  // Portrait + first 3 paragraphs — fire immediately (highest priority)
-  fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, 90_000).catch(() => null);
-  [0, 1, 2].forEach(i => {
-    const p = generated.paragraphs[i];
-    if (p) fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, 90_000).catch(() => null);
-  });
-  // Remaining paragraphs — staggered 2s apart (lower urgency, background)
-  generated.paragraphs.slice(3).forEach((p, i) => {
-    setTimeout(() => {
-      fetchIllustrationDataUrl(id, i + 3, p.scene_description, p.mood, generated.title, 90_000).catch(() => null);
-    }, (i + 1) * 2000);
+  const lang = generated.language;
+  const requests = [
+    () => fetchIllustrationDataUrl(id, -1, generated.title, 'magical', generated.title, lang, 90_000),
+    ...generated.paragraphs.map((p, i) =>
+      () => fetchIllustrationDataUrl(id, i, p.scene_description, p.mood, generated.title, lang, 90_000)
+    ),
+  ];
+  requests.forEach((fn, i) => {
+    setTimeout(() => fn().catch(() => null), i * 15_000);
   });
 }
 

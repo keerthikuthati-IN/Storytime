@@ -216,7 +216,7 @@ export default function PlayPage({ params }: PageProps) {
         // The cover is pre-loaded so the user sees an illustration from frame 1.
         setLoadingPhase('illustrations');
         const coverDataUrl = await fetchIllustrationDataUrl(
-          decodeURIComponent(storyId), -1, storyData.title, 'magical', storyData.title, 20_000
+          decodeURIComponent(storyId), -1, storyData.title, 'magical', storyData.title, storyData.language, 60_000
         ).catch(() => null);
 
         setIllusTotal(storyData.paragraphs.length);

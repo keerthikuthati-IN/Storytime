@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const AGE_VOCABULARY: Record<string, string> = {
       'newborn':       'Use only simple sensory words — warm, soft, gentle, cozy, quiet. One very soft sentence per scene, maximum. No plot or conflict. Pure warmth and magic.',
       'toddler':       'Use very simple words (1-2 syllables where possible). Gentle rhythm and repetition. Rich sensory details — soft, warm, cozy, sleepy.',
-      'early-learner': 'Use vivid vocabulary with interesting imagery. Simple but expressive language. A gentle narrative arc across the 15 scenes.',
+      'early-learner': 'Use vivid vocabulary with interesting imagery. Simple but expressive language. A gentle narrative arc across the 10 scenes.',
     };
 
     const genderHint = gender === 'girl' ? 'The child is a girl — use she/her pronouns if the child appears in the story.' : gender === 'boy' ? 'The child is a boy — use he/him pronouns if the child appears in the story.' : '';
@@ -34,7 +34,7 @@ ${interestsHint}
 ${languageInstruction}
 
 PICTURE BOOK FORMAT — THIS IS CRITICAL:
-Write exactly 15 scenes. Each scene is 2–3 concise sentences — no filler, no padding, every word earns its place. One vivid moment per scene, like a picture book page read aloud by Nani while the child looks at the illustration. Short words, strong images, natural rhythm when spoken aloud. ${ageVocabulary}
+Write exactly 10 scenes. Each scene is 2–3 concise sentences — no filler, no padding, every word earns its place. One vivid moment per scene, like a picture book page read aloud by Nani while the child looks at the illustration. Short words, strong images, natural rhythm when spoken aloud. ${ageVocabulary}
 Build a gentle arc: wonder → warmth → calm → sleepy. End the final scene with the world going soft and still, guiding the child toward sleep.
 
 ${generateTitle ? 'Create a fresh, original story with memorable characters.' : 'Stay true to the beloved original story. Use classic characters, key plot moments, and the satisfying ending parents and children know.'}
@@ -64,7 +64,7 @@ Return JSON in this exact shape:
     }
   ]
 }
-IMPORTANT: The paragraphs array must contain EXACTLY 15 items — no more, no less.
+IMPORTANT: The paragraphs array must contain EXACTLY 10 items — no more, no less.
 For the emotion field: use 'sleepy' for the last scene, 'happy' for joyful moments, 'wonder' for magical/surprising scenes, 'excited' for action, 'concerned' for tense moments (gentle concern, never frightened), 'idle' for calm narration.`;
 
     const message = await client.messages.create({

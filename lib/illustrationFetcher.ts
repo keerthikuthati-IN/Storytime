@@ -13,6 +13,7 @@ export async function fetchIllustrationDataUrl(
   sceneDescOrTitle: string, // scene_description for scenes, story title for cover
   mood: string,
   storyTitle?: string,    // anchors scene context (story name)
+  language?: string,      // 'telugu' triggers Indian cultural elements
   timeoutMs = 20_000,
 ): Promise<string | null> {
   const key = illustrationKey(storyId, paraIdx);
@@ -24,8 +25,8 @@ export async function fetchIllustrationDataUrl(
   // 2. Call the Claude SVG illustration API
   const isPortrait = paraIdx === -1;
   const body = isPortrait
-    ? { title: sceneDescOrTitle, mood }
-    : { scene_description: sceneDescOrTitle, mood, story_title: storyTitle };
+    ? { title: sceneDescOrTitle, mood, language }
+    : { scene_description: sceneDescOrTitle, mood, story_title: storyTitle, language };
 
   try {
     const controller = new AbortController();

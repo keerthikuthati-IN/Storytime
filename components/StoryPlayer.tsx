@@ -306,11 +306,11 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     try {
       const storyTitle = currentStory.title;
       const body = title && !sceneDesc
-        ? { title, mood }
-        : { scene_description: sceneDesc, mood, story_title: storyTitle };
+        ? { title, mood, language: storyMeta.language }
+        : { scene_description: sceneDesc, mood, story_title: storyTitle, language: storyMeta.language };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20_000);
+      const timeoutId = setTimeout(() => controller.abort(), 60_000);
       let res: Response;
       try {
         res = await fetch('/api/stories/illustrate', {
@@ -370,8 +370,17 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     }
   }
 
+  function stopMusicNow() {
+    if (howlRef.current) {
+      const h = howlRef.current;
+      howlRef.current = null;
+      h.stop();
+      h.unload();
+    }
+  }
+
   useEffect(() => {
-    return () => { stop(); stopMusic(); };
+    return () => { stop(); stopMusicNow(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -413,12 +422,12 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Fire all illustrations on mount — staggered 300ms so the server isn't slammed.
-    // kickOffIllustrations may have already cached some in IndexedDB; these are no-ops.
+    // Fire cover + scene 0 on mount only. Per-paragraph look-ahead (N+1, N+2) handles
+    // the rest during playback. kickOffIllustrations may have already cached in IndexedDB.
     prefetchIllustration(-1, '', 'magical', currentStory.title);
-    currentStory.paragraphs.forEach((p, i) => {
-      setTimeout(() => prefetchIllustration(i, p.scene_description, p.mood), i * 300);
-    });
+    if (currentStory.paragraphs[0]) {
+      prefetchIllustration(0, currentStory.paragraphs[0].scene_description, currentStory.paragraphs[0].mood);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -552,7 +561,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   function handleExit() {
     pausedRef.current = true;
     stop();
-    stopMusic();
+    stopMusicNow();
     onEnd();
   }
 

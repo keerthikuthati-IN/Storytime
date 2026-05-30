@@ -310,7 +310,7 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
 
   const loadPortrait = useCallback(async (story: DailyStory) => {
     const url = await fetchIllustrationDataUrl(
-      story.id, -1, story.story.title, 'magical', story.story.title, 15_000
+      story.id, -1, story.story.title, 'magical', story.story.title, story.story.language, 15_000
     ).catch(() => null);
     if (url) setPortraits(prev => ({ ...prev, [story.id]: url }));
   }, []);
@@ -348,7 +348,7 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
   function playStory(story: DailyStory) {
     // Fire cover portrait immediately on tap — warms HuggingFace model during navigation.
     // No-op if already cached in IndexedDB; pays off on first play of a new daily story.
-    fetchIllustrationDataUrl(story.id, -1, story.story.title, 'magical', story.story.title, 90_000).catch(() => null);
+    fetchIllustrationDataUrl(story.id, -1, story.story.title, 'magical', story.story.title, story.story.language, 90_000).catch(() => null);
 
     const params = new URLSearchParams({
       title:    story.title,
