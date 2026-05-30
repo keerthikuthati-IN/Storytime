@@ -1,71 +1,51 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { ComponentType } from 'react';
+import { motion } from 'framer-motion';
 
-interface MoodAmbientProps {
-  mood: string;
-}
+const MOOD_PARTICLES: Record<string, string[]> = {
+  calm:     ['☁️', '🌿', '🍃', '⭐', '💤'],
+  magical:  ['✨', '💫', '⭐', '🌟', '🔮'],
+  happy:    ['🌸', '⭐', '✨', '🎈', '🌈'],
+  exciting: ['⚡', '🌟', '✨', '🎆', '💥'],
+  tense:    ['🌧️', '💧', '🌫️', '🍂', '🌀'],
+};
 
-/**
- * Transparent Lottie animation overlay layered on top of story illustrations.
- * Maps mood → /public/lottie/mood-{mood}.json
- *
- * Silently renders nothing if a Lottie file is not found — drop JSON files from
- * lottiefiles.com into public/lottie/ to activate. Suggested searches:
- *   calm     → "floating clouds petals gentle"
- *   magical  → "sparkles glowing stars magic"
- *   happy    → "bouncing stars hearts celebration"
- *   exciting → "particles burst shooting stars"
- *   tense    → "flickering embers slow shadows"
- */
-export default function MoodAmbient({ mood }: MoodAmbientProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [LottieComp, setLottieComp] = useState<ComponentType<any> | null>(null);
-  const [animData, setAnimData] = useState<object | null>(null);
+// Deterministic positions — no Math.random to avoid hydration mismatch
+const SLOTS = [
+  { x: 8,  delay: 0,   dur: 9  },
+  { x: 22, delay: 1.4, dur: 11 },
+  { x: 40, delay: 0.7, dur: 8  },
+  { x: 58, delay: 2.1, dur: 10 },
+  { x: 74, delay: 0.3, dur: 12 },
+  { x: 88, delay: 1.8, dur: 9  },
+];
 
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const [lottieModule, res] = await Promise.all([
-          import('lottie-react'),
-          fetch(`/lottie/mood-${mood}.json`),
-        ]);
-        if (!mounted || !res.ok) return;
-        const data = await res.json();
-        if (mounted) {
-          setLottieComp(() => lottieModule.default);
-          setAnimData(data);
-        }
-      } catch {
-        // Lottie file not present — render nothing until files are added
-      }
-    }
-    setLottieComp(null);
-    setAnimData(null);
-    load();
-    return () => { mounted = false; };
-  }, [mood]);
-
-  if (!LottieComp || !animData) return null;
+export default function MoodAmbient({ mood }: { mood: string }) {
+  const emojis = MOOD_PARTICLES[mood] ?? MOOD_PARTICLES.calm;
 
   return (
     <div
       style={{
         position: 'absolute',
         inset: 0,
-        opacity: 0.35,
+        opacity: 0.28,
         pointerEvents: 'none',
         zIndex: 7,
+        overflow: 'hidden',
       }}
     >
-      <LottieComp
-        animationData={animData}
-        loop
-        autoplay
-        style={{ width: '100%', height: '100%' }}
-      />
+      {SLOTS.map((s, i) => (
+        <motion.div
+          key={i}
+          className="absolute select-none"
+          style={{ left: `${s.x}%`, fontSize: 13 + (i % 3) * 3 }}
+          initial={{ y: '108%' }}
+          animate={{ y: '-12%' }}
+          transition={{ duration: s.dur, repeat: Infinity, delay: s.delay, ease: 'linear' }}
+        >
+          {emojis[i % emojis.length]}
+        </motion.div>
+      ))}
     </div>
   );
 }
