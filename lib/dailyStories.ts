@@ -45,6 +45,18 @@ export interface DailyStoriesData {
   generatedAt: number;
 }
 
+/** Lightweight slot preview — computed synchronously, no API calls.
+ *  Used to show slot cards immediately before story text is generated. */
+export interface DailySlotPreview {
+  storyId: string;
+  title: string;
+  category: string;
+  mood: string;
+  language: 'english' | 'telugu';
+  slot: StorySlot;
+  unlocksAt: number;
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const DAILY_KEY = 'storytime_daily';
@@ -99,6 +111,25 @@ export function saveDailyStories(data: DailyStoriesData): void {
 
 export function getDailyStoryById(id: string): DailyStory | null {
   return getTodayStories()?.stories.find(s => s.id === id) ?? null;
+}
+
+/**
+ * Returns slot previews synchronously (no API calls) — title, category, slot type,
+ * and unlock time computed from date + profile seed. Used to show slot cards
+ * on the discover page immediately, before story text has been generated.
+ */
+export function getTodaySlotPreviews(profile: ChildProfile): DailySlotPreview[] {
+  const slots = pickDailySlots(profile);
+  const date = todayDate();
+  return slots.map((s, i) => ({
+    storyId: `daily-${date}-${i}`,
+    title: s.title,
+    category: s.category,
+    mood: s.mood,
+    language: s.language,
+    slot: s.slot,
+    unlocksAt: s.unlocksAt,
+  }));
 }
 
 /** Save a played daily story into storytime_liked_objects so it appears in the Saved tab. */

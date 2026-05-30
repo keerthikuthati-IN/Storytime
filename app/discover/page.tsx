@@ -10,11 +10,13 @@ import type { StoryRecommendation } from '@/lib/claude';
 import { getCategoryStyle } from '@/lib/storyCovers';
 import {
   getTodayStories,
+  getTodaySlotPreviews,
   generateDailyStories,
   CATEGORY_EMOJIS,
   SLOT_LABELS,
   SLOT_UNLOCK_HOURS,
   type DailyStory,
+  type DailySlotPreview,
   type StorySlot,
 } from '@/lib/dailyStories';
 import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
@@ -76,24 +78,27 @@ function getCountdownLabel(slot: StorySlot): string {
 // ── Time Slot Card ──────────────────────────────────────────────────────────
 
 function TimeSlotCard({
+  preview,
   story,
   portrait,
   status,
   onPlay,
   onLockedTap,
 }: {
-  story: DailyStory;
+  preview: DailySlotPreview;
+  story: DailyStory | null;     // null = still generating
   portrait: string | null;
   status: 'past' | 'current' | 'future';
   onPlay: () => void;
   onLockedTap: () => void;
 }) {
-  const narrator  = getDefaultNarrator();
-  const catEmoji  = CATEGORY_EMOJIS[story.category] ?? '📚';
-  const catStyle  = getCategoryStyle(story.category);
-  const slotInfo  = SLOT_LABELS[story.slot] ?? { icon: '📖', label: 'Story' };
-  const langLabel = story.language === 'telugu' ? '🇮🇳 తెలుగు' : '🇬🇧 English';
-  const isFuture  = status === 'future';
+  const narrator   = getDefaultNarrator();
+  const catEmoji   = CATEGORY_EMOJIS[preview.category] ?? '📚';
+  const catStyle   = getCategoryStyle(preview.category);
+  const slotInfo   = SLOT_LABELS[preview.slot] ?? { icon: '📖', label: 'Story' };
+  const langLabel  = preview.language === 'telugu' ? '🇮🇳 తెలుగు' : '🇬🇧 English';
+  const isFuture   = status === 'future';
+  const isReady    = story !== null;
 
   return (
     <motion.div
@@ -165,7 +170,7 @@ function TimeSlotCard({
               <span style={{ fontSize: 18 }}>🔒</span>
             </div>
             <span className="font-nunito text-white text-xs font-bold bg-black/30 px-3 py-1 rounded-full">
-              {getCountdownLabel(story.slot)}
+              {getCountdownLabel(preview.slot)}
             </span>
           </div>
         )}
@@ -177,7 +182,7 @@ function TimeSlotCard({
 
         {/* Category badge */}
         <span className="absolute top-2 right-2 bg-white/80 text-gray-700 text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full">
-          {catEmoji} {story.category}
+          {catEmoji} {preview.category}
         </span>
       </div>
 
@@ -185,17 +190,40 @@ function TimeSlotCard({
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex-1 min-w-0 pr-3">
           <h3 className="font-baloo font-bold text-base text-gray-800 leading-tight line-clamp-1">
-            {story.title}
+            {preview.title}
           </h3>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <NaniAvatar size={18} animate="none" />
-            <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
-            <span className="text-gray-200 mx-0.5">·</span>
-            <span className="font-nunito text-xs text-gray-400">⏱ ~3 min</span>
-          </div>
+          {isReady ? (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <NaniAvatar size={18} animate="none" />
+              <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
+              <span className="text-gray-200 mx-0.5">·</span>
+              <span className="font-nunito text-xs text-gray-400">⏱ ~3 min</span>
+            </div>
+          ) : (
+            // Story still generating — show subtle dots for current slot
+            status === 'current' ? (
+              <div className="flex items-center gap-1 mt-1">
+                {[0, 0.15, 0.3].map(d => (
+                  <motion.span
+                    key={d}
+                    className="w-1 h-1 rounded-full bg-coral/50 inline-block"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ duration: 0.9, repeat: Infinity, delay: d }}
+                  />
+                ))}
+                <span className="font-nunito text-[10px] text-gray-400 ml-1">Nani is getting ready…</span>
+              </div>
+            ) : (
+              <span className="font-nunito text-xs text-gray-300 mt-0.5 block">Coming soon…</span>
+            )
+          )}
         </div>
 
-        {!isFuture ? (
+        {isFuture ? (
+          <div className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 text-lg flex-shrink-0">
+            🔒
+          </div>
+        ) : isReady ? (
           <motion.div
             whileTap={{ scale: 0.88 }}
             className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-glow flex-shrink-0 ${
@@ -205,9 +233,18 @@ function TimeSlotCard({
             {status === 'current' ? '▶' : '↺'}
           </motion.div>
         ) : (
-          <div className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 text-lg flex-shrink-0">
-            🔒
-          </div>
+          // Generating — spinner ring for current, nothing for past
+          status === 'current' ? (
+            <div className="w-11 h-11 rounded-2xl bg-coral/10 flex items-center justify-center flex-shrink-0">
+              <motion.div
+                className="w-5 h-5 rounded-full border-2 border-coral/30 border-t-coral"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              />
+            </div>
+          ) : (
+            <div className="w-11 h-11 rounded-2xl bg-gray-50 flex-shrink-0" />
+          )
         )}
       </div>
     </motion.div>
@@ -278,6 +315,8 @@ const SLOT_ORDER: StorySlot[] = ['morning', 'afternoon', 'evening'];
 
 function TodayStoriesView({ profile }: { profile: ChildProfile }) {
   const router = useRouter();
+  // Previews are computed synchronously — titles/categories shown instantly, 0ms wait
+  const [previews] = useState<DailySlotPreview[]>(() => getTodaySlotPreviews(profile));
   const [stories, setStories]   = useState<DailyStory[]>([]);
   const [portraits, setPortraits] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
@@ -330,19 +369,8 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
     setTimeout(() => setLockedToast(null), 2500);
   }
 
-  // Sort stories into morning / afternoon / evening order
-  const storiesBySlot: Record<StorySlot, DailyStory | undefined> = {
-    morning:   stories.find(s => s.slot === 'morning'),
-    afternoon: stories.find(s => s.slot === 'afternoon'),
-    evening:   stories.find(s => s.slot === 'evening'),
-  };
-
-  // Fallback for old cached data that lacks slot field — assign by index
-  const fallbackOrder = [...stories];
-  const orderedStories: Array<{ slot: StorySlot; story: DailyStory | null }> = SLOT_ORDER.map((slot, i) => ({
-    slot,
-    story: storiesBySlot[slot] ?? fallbackOrder[i] ?? null,
-  }));
+  // Map full stories onto previews — previews are always the source of truth
+  const storiesById = Object.fromEntries(stories.map(s => [s.id, s]));
 
   const allReady = !generating && stories.length >= 3;
 
@@ -363,37 +391,24 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
         )}
       </AnimatePresence>
 
-      {/* Time-slot cards */}
+      {/* Time-slot cards — rendered immediately from previews, activated as stories arrive */}
       <div className="flex flex-col gap-4">
-        {orderedStories.map(({ slot, story }) => {
-          if (!story) return null;
-          const status = getSlotStatus(slot);
+        {previews.map(preview => {
+          const story = storiesById[preview.storyId] ?? null;
+          const status = getSlotStatus(preview.slot);
           return (
             <TimeSlotCard
-              key={story.id}
-              story={{ ...story, slot }}
-              portrait={portraits[story.id] ?? null}
+              key={preview.storyId}
+              preview={preview}
+              story={story}
+              portrait={story ? (portraits[story.id] ?? null) : null}
               status={status}
-              onPlay={() => playStory(story)}
-              onLockedTap={() => handleLockedTap(slot)}
+              onPlay={() => story && playStory(story)}
+              onLockedTap={() => handleLockedTap(preview.slot)}
             />
           );
         })}
       </div>
-
-      {/* Loading state — shown while generating */}
-      <AnimatePresence>
-        {generating && (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-          >
-            <StoriesLoading readyCount={stories.length} />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Locked slot toast */}
       <AnimatePresence>
