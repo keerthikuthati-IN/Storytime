@@ -68,11 +68,12 @@ export async function generateStory(
   gender?: string,
   interests?: string[],
   language?: string,
+  generateTitle?: boolean, // true → Claude invents the story title from the category
 ): Promise<GeneratedStory> {
   const res = await fetch('/api/stories/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup, gender, interests, language }),
+    body: JSON.stringify({ title, category, mood, childName, narratorId, narratorName, narratorDescription, ageGroup, gender, interests, language, generateTitle }),
   });
   if (!res.ok) throw new Error('Failed to generate story');
   const data = await res.json();

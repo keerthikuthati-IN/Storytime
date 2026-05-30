@@ -9,6 +9,7 @@ import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
 import { getAudioForMood, MUSIC_VOLUME } from '@/lib/audioMap';
 import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/storage';
 import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
+import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
 
 interface PageProps {
   params: Promise<{ storyId: string }>;
@@ -348,7 +349,12 @@ export default function PlayPage({ params }: PageProps) {
       fromCache={fromCache}
       storyMeta={{ title, category, mood, narratorId, language }}
       initialIllustrations={initialIllustrations}
-      onEnd={() => router.push('/my-stories')}
+      onEnd={() => {
+        // Save daily stories to the Saved tab for replay access
+        const dailyStory = getDailyStoryById(decodeURIComponent(storyId));
+        if (dailyStory) saveDailyStoryAsPlayed(dailyStory);
+        router.push('/discover');
+      }}
     />
   );
 }

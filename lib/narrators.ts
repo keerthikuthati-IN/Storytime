@@ -11,6 +11,7 @@ export interface Narrator {
   bgColor: string;
   accentColor: string;
   elevenLabsVoiceId: string;
+  avatarRef?: string; // reserved for future animated narrator avatar (Grok-style)
 }
 
 export const NARRATORS: Narrator[] = [
