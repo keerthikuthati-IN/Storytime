@@ -95,7 +95,7 @@ export function useTTS(
       }
 
       const utt   = new SpeechSynthesisUtterance(text);
-      utt.rate    = 0.78;
+      utt.rate    = 0.72;
       utt.pitch   = 1.0;
       const english = voices.filter(v => v.lang.startsWith('en'));
       const female  = english.find(v =>
