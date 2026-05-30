@@ -13,8 +13,8 @@ const SPEAKERS: Record<string, string> = {
 };
 
 const PACE: Record<string, number> = {
-  telugu:  0.82,
-  english: 0.80,
+  telugu:  0.77,
+  english: 0.75,
 };
 
 function getPace(language: string): number {

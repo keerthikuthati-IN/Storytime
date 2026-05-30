@@ -11,6 +11,7 @@ import { getProfile, getAgeGroup, getCachedStory, setCachedStory } from '@/lib/s
 import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
 import { getDailyStoryById, saveDailyStoryAsPlayed } from '@/lib/dailyStories';
 import NaniAvatar from '@/components/NaniAvatar';
+import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 
 interface PageProps {
   params: Promise<{ storyId: string }>;
@@ -84,6 +85,15 @@ export default function PlayPage({ params }: PageProps) {
   const profile  = typeof window !== 'undefined' ? getProfile() : null;
   const howlRef  = useRef<import('howler').Howl | null>(null);
 
+  // Fire cover illustration immediately — title/mood/language are in URL params,
+  // no need to wait for Claude. Writes to IndexedDB so StoryPlayer finds it cached.
+  useEffect(() => {
+    fetchIllustrationDataUrl(
+      decodeURIComponent(storyId), -1, title, mood, title, language,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Ambient music during loading — single exciting.mp3 track
   useEffect(() => {
     let mounted = true;
@@ -138,6 +148,14 @@ export default function PlayPage({ params }: PageProps) {
             story: storyData, title, category, mood, narratorId, language, cachedAt: Date.now(),
           });
         }
+
+        // Start illustration 0 before StoryPlayer mounts — head start while React re-renders.
+        fetchIllustrationDataUrl(
+          decodeURIComponent(storyId), 0,
+          storyData.paragraphs[0].scene_description,
+          storyData.paragraphs[0].mood,
+          storyData.title, language,
+        );
 
         setStory(storyData);
         setFromCache(isCache);

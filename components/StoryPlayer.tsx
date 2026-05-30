@@ -154,14 +154,32 @@ const SCENE_GRADIENTS: Record<StoryMood, string[]> = {
   tense:    ['linear-gradient(135deg,#E8EAF6,#EDE8F8)','linear-gradient(160deg,#EDE8F8,#F3F4F9)','linear-gradient(120deg,#F3F4F9,#E8EAF6)'],
 };
 
-function SceneCard({ mood, category, paraIndex, sceneEmojis }: {
+function SceneCard({ mood, category, paraIndex, sceneEmojis, title }: {
   mood: StoryMood; category: string; paraIndex: number;
   sceneEmojis?: import('@/lib/claude').SceneEmojis;
+  title?: string;
 }) {
   const variant  = Math.abs(paraIndex + 1) % 3; // +1 so intro (−1) → variant 0
   const gradient = (SCENE_GRADIENTS[mood] ?? SCENE_GRADIENTS.calm)[variant];
   // Prefer story-specific emojis returned by Claude; fall back to category map
   const emojis   = sceneEmojis ?? SCENE_EMOJIS[category] ?? SCENE_EMOJIS['Adventure'];
+
+  // Book cover — shown during intro while AI cover illustration generates
+  if (paraIndex === -1) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden select-none"
+        style={{ background: gradient }}>
+        <div className="mx-8 rounded-3xl bg-white/85 px-8 py-10
+                        flex flex-col items-center gap-4 shadow-xl text-center">
+          <div style={{ fontSize: 56 }}>{emojis.hero}</div>
+          <h1 className="font-baloo font-bold text-2xl text-gray-800 leading-tight">
+            {title ?? 'A Story'}
+          </h1>
+          <p className="font-nunito text-gray-500 text-xs tracking-widest uppercase">a bedtime story</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden select-none"
@@ -397,9 +415,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
         if (pausedRef.current) return;
         if (!cached) setTtsLoading(true);
         speak(currentStory.narrator_intro, storyLanguage, () => {
-          // Reveal "BEGIN STORY" button; auto-advance after 2s so tapping is optional
           setIntroFinished(true);
-          setTimeout(() => setParaIndex(prev => prev === -1 ? 0 : prev), 2000);
         }, cached);
       }, 600);
 
@@ -600,13 +616,14 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     );
   }
 
-  // Find best available illustration — max 1 step back so user never sees portrait
-  // reappear mid-story. Scene N not ready → show scene N-1 (the page just left).
+  // Paired illustration scheme: paras 0+1 share index 0, 2+3 share index 2, etc.
   const displayParaIdx = (() => {
-    if (illustrations[paraIndex] != null) return paraIndex;
-    const prev = paraIndex - 1; // equals -1 when paraIndex=0, which is correct (show portrait)
-    if (prev >= -1 && illustrations[prev] != null) return prev;
-    if (illustrations[-1] != null) return -1; // absolute last resort
+    if (paraIndex === -1) return illustrations[-1] != null ? -1 : null;
+    const pairedIdx = Math.floor(paraIndex / 2) * 2;  // 0,0,2,2,4,4,6,6,8,8
+    if (illustrations[pairedIdx] != null) return pairedIdx;
+    const prevPair = pairedIdx - 2;
+    if (prevPair >= 0 && illustrations[prevPair] != null) return prevPair;
+    if (illustrations[-1] != null) return -1;
     return null;
   })();
   const displayIllus = displayParaIdx != null ? illustrations[displayParaIdx] : null;
@@ -719,6 +736,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
               category={storyMeta.category}
               paraIndex={paraIndex}
               sceneEmojis={currentStory.scene_emojis}
+              title={storyMeta.title}
             />
           </motion.div>
         </AnimatePresence>

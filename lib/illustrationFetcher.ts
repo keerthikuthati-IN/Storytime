@@ -89,7 +89,8 @@ export async function fetchIllustrationDataUrl(
 
 /**
  * Pre-generate all illustrations for a story in background.
- * Fires requests for cover (-1) and all 10 scenes (0-9) using the global queue (max 2 concurrent).
+ * Fires requests for cover (-1) and 5 scenes (0,2,4,6,8) using the global queue (max 1 concurrent).
+ * Odd paragraphs (1,3,5,7,9) reuse their predecessor's illustration — 6 total instead of 11.
  * Calls onProgress as each completes so StoryPlayer can update state progressively.
  * Uses IndexedDB cache — instant for replays, zero extra API calls.
  */
@@ -102,15 +103,17 @@ export async function preGenerateAllIllustrations(
   language: string | undefined,
   onProgress: (paraIdx: number, dataUrl: string) => void,
 ): Promise<void> {
+  // Cover + one illustration per paragraph pair (0+1, 2+3, 4+5, 6+7, 8+9).
+  // Odd paragraphs reuse their predecessor's illustration — 6 total instead of 11.
   const requests: Array<{ paraIdx: number; sceneDesc: string; mood: string }> = [
-    // Cover portrait first — shows during intro phase
     { paraIdx: -1, sceneDesc: story.title, mood: 'magical' },
-    // All 10 scene illustrations
-    ...story.paragraphs.map((p, i) => ({
-      paraIdx: i,
-      sceneDesc: p.scene_description,
-      mood: p.mood,
-    })),
+    ...story.paragraphs
+      .filter((_, i) => i % 2 === 0)          // only indices 0, 2, 4, 6, 8
+      .map((p, slot) => ({
+        paraIdx:   slot * 2,
+        sceneDesc: p.scene_description,
+        mood:      p.mood,
+      })),
   ];
 
   await Promise.all(
