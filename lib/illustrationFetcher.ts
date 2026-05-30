@@ -1,18 +1,15 @@
 import { illustrationKey, getIllustration, setIllustration } from './illustrationCache';
 
 /**
- * Fetch one illustration data URL — shared helper used by all callers.
- *
- * Flow: IndexedDB cache → in-flight dedup → global queue → /api/stories/illustrate → IndexedDB persist
+ * Illustration fetching with global queue and in-flight deduplication.
  *
  * Two module-level primitives prevent rate-limit errors:
- *  1. _pending: deduplication map — if the same key is already in-flight, all callers
- *     share the same Promise (zero duplicate API calls).
- *  2. enqueueRequest: global concurrency queue (MAX = 1) — at most 1 Sonnet call
- *     in-flight globally at any time, regardless of how many callers exist.
+ *  1. _pending: dedup map — if the same key is already in-flight, all callers share the same Promise.
+ *  2. enqueueRequest: global concurrency queue (MAX = 2) — at most 2 Imagen 3 calls in-flight globally.
  */
 
-// ── Global queue: max 1 Sonnet illustration call in-flight at a time ─────────
+// ── Global queue: max 2 Imagen 3 calls in-flight at a time ──────────────────
+const MAX_CONCURRENT = 2;
 let _queueRunning = 0;
 const _queue: Array<() => void> = [];
 
@@ -25,7 +22,7 @@ function enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
         if (_queue.length > 0) _queue.shift()!();
       });
     };
-    if (_queueRunning < 1) run();
+    if (_queueRunning < MAX_CONCURRENT) run();
     else _queue.push(run);
   });
 }
@@ -40,7 +37,7 @@ export async function fetchIllustrationDataUrl(
   mood: string,
   storyTitle?: string,       // anchors scene context (story name)
   language?: string,         // 'telugu' triggers Indian cultural elements
-  timeoutMs = 20_000,
+  timeoutMs = 30_000,
 ): Promise<string | null> {
   const key = illustrationKey(storyId, paraIdx);
 
@@ -51,7 +48,7 @@ export async function fetchIllustrationDataUrl(
   // 2. In-flight dedup — return existing promise if this key is already being fetched
   if (_pending.has(key)) return _pending.get(key)!;
 
-  // 3. New request — enqueue globally (max 1 Sonnet call in-flight at a time)
+  // 3. New request — enqueue globally (max 2 Imagen 3 calls in-flight at a time)
   const isPortrait = paraIdx === -1;
   const body = isPortrait
     ? { title: sceneDescOrTitle, mood, language }
@@ -88,4 +85,46 @@ export async function fetchIllustrationDataUrl(
 
   _pending.set(key, promise);
   return promise;
+}
+
+/**
+ * Pre-generate all illustrations for a story in background.
+ * Fires requests for cover (-1) and all 10 scenes (0-9) using the global queue (max 2 concurrent).
+ * Calls onProgress as each completes so StoryPlayer can update state progressively.
+ * Uses IndexedDB cache — instant for replays, zero extra API calls.
+ */
+export async function preGenerateAllIllustrations(
+  story: {
+    title: string;
+    paragraphs: Array<{ scene_description: string; mood: string }>;
+  },
+  storyId: string,
+  language: string | undefined,
+  onProgress: (paraIdx: number, dataUrl: string) => void,
+): Promise<void> {
+  const requests: Array<{ paraIdx: number; sceneDesc: string; mood: string }> = [
+    // Cover portrait first — shows during intro phase
+    { paraIdx: -1, sceneDesc: story.title, mood: 'magical' },
+    // All 10 scene illustrations
+    ...story.paragraphs.map((p, i) => ({
+      paraIdx: i,
+      sceneDesc: p.scene_description,
+      mood: p.mood,
+    })),
+  ];
+
+  await Promise.all(
+    requests.map(async ({ paraIdx, sceneDesc, mood }) => {
+      const dataUrl = await fetchIllustrationDataUrl(
+        storyId,
+        paraIdx,
+        sceneDesc,
+        mood,
+        story.title,
+        language,
+        30_000,
+      );
+      if (dataUrl) onProgress(paraIdx, dataUrl);
+    })
+  );
 }

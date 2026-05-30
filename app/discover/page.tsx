@@ -12,8 +12,10 @@ import {
   getTodayStories,
   generateDailyStories,
   CATEGORY_EMOJIS,
+  SLOT_LABELS,
+  SLOT_UNLOCK_HOURS,
   type DailyStory,
-  type StoryTeaser,
+  type StorySlot,
 } from '@/lib/dailyStories';
 import { fetchIllustrationDataUrl } from '@/lib/illustrationFetcher';
 import { getDefaultNarrator } from '@/lib/narrators';
@@ -40,45 +42,100 @@ function timeGreeting(): string {
 
 type Tab = 'today' | 'saved';
 
-// ── Story Card ─────────────────────────────────────────────────────────────
+// ── Slot helpers ───────────────────────────────────────────────────────────
 
-function DailyStoryCard({
+function getSlotStatus(slot: StorySlot): 'past' | 'current' | 'future' {
+  const h = new Date().getHours();
+  if (slot === 'morning') {
+    if (h < 6)  return 'future';
+    if (h < 12) return 'current';
+    return 'past';
+  }
+  if (slot === 'afternoon') {
+    if (h < 12) return 'future';
+    if (h < 18) return 'current';
+    return 'past';
+  }
+  // evening
+  return h < 18 ? 'future' : 'current';
+}
+
+function getCountdownLabel(slot: StorySlot): string {
+  const unlockHour = SLOT_UNLOCK_HOURS[slot];
+  const now = new Date();
+  const target = new Date();
+  target.setHours(unlockHour, 0, 0, 0);
+  const diffMs = target.getTime() - now.getTime();
+  if (diffMs <= 0) return 'Available now';
+  const diffH = Math.floor(diffMs / 3_600_000);
+  const diffM = Math.floor((diffMs % 3_600_000) / 60_000);
+  if (diffH > 0) return `Opens in ${diffH}h ${diffM}m`;
+  return `Opens in ${diffM}m`;
+}
+
+// ── Time Slot Card ──────────────────────────────────────────────────────────
+
+function TimeSlotCard({
   story,
   portrait,
-  index,
+  status,
   onPlay,
+  onLockedTap,
 }: {
   story: DailyStory;
   portrait: string | null;
-  index: number;
+  status: 'past' | 'current' | 'future';
   onPlay: () => void;
+  onLockedTap: () => void;
 }) {
-  const narrator = getDefaultNarrator();
+  const narrator  = getDefaultNarrator();
+  const catEmoji  = CATEGORY_EMOJIS[story.category] ?? '📚';
+  const catStyle  = getCategoryStyle(story.category);
+  const slotInfo  = SLOT_LABELS[story.slot] ?? { icon: '📖', label: 'Story' };
   const langLabel = story.language === 'telugu' ? '🇮🇳 తెలుగు' : '🇬🇧 English';
-  const catEmoji = CATEGORY_EMOJIS[story.category] ?? '📚';
-  const catStyle = getCategoryStyle(story.category);
+  const isFuture  = status === 'future';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50, scale: 0.15 }}
+      initial={{ opacity: 0, y: 24, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.15, type: 'spring', stiffness: 380, damping: 22 }}
-      onClick={onPlay}
-      className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer active:scale-[0.98] transition-transform"
+      transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+      onClick={isFuture ? onLockedTap : onPlay}
+      className={`bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer active:scale-[0.98] transition-transform relative ${
+        status === 'current' ? 'ring-2 ring-coral shadow-glow' : ''
+      } ${status === 'past' ? 'opacity-80' : ''}`}
     >
+      {/* Slot label pill */}
+      <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
+        <span className="text-base">{slotInfo.icon}</span>
+        <span className="font-nunito text-xs font-bold text-gray-500 uppercase tracking-wide">
+          {slotInfo.label}
+        </span>
+        {status === 'current' && (
+          <span className="ml-auto bg-coral/10 text-coral text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full">
+            Now
+          </span>
+        )}
+        {status === 'past' && (
+          <span className="ml-auto bg-gray-100 text-gray-400 text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Check size={9} strokeWidth={3} /> Played
+          </span>
+        )}
+      </div>
+
       {/* Illustration / portrait area */}
       <div
-        className="relative w-full overflow-hidden"
-        style={{ height: 180, background: `linear-gradient(135deg, ${catStyle.from} 0%, ${catStyle.to} 100%)` }}
+        className="relative w-full overflow-hidden mx-3 rounded-2xl"
+        style={{ height: 160, width: 'calc(100% - 24px)', background: `linear-gradient(135deg, ${catStyle.from} 0%, ${catStyle.to} 100%)` }}
       >
         <AnimatePresence>
-          {portrait && (
+          {portrait && !isFuture && (
             <motion.div
               key="portrait"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.7 }}
-              className="absolute inset-0"
+              className="absolute inset-0 rounded-2xl"
               style={{
                 backgroundImage: `url(${portrait})`,
                 backgroundSize: 'cover',
@@ -88,78 +145,92 @@ function DailyStoryCard({
           )}
         </AnimatePresence>
 
-        {!portrait && (
+        {/* Placeholder emoji — shown when no portrait or future */}
+        {(!portrait || isFuture) && (
           <div className="absolute inset-0 flex items-center justify-center">
             <motion.span
-              animate={{ scale: [1, 1.08, 1] }}
+              animate={isFuture ? {} : { scale: [1, 1.08, 1] }}
               transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ fontSize: 72 }}
+              style={{ fontSize: isFuture ? 56 : 64, opacity: isFuture ? 0.35 : 1 }}
             >
               {catEmoji}
             </motion.span>
           </div>
         )}
 
+        {/* Future lock overlay */}
+        {isFuture && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/20 backdrop-blur-[2px] rounded-2xl">
+            <div className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
+              <span style={{ fontSize: 18 }}>🔒</span>
+            </div>
+            <span className="font-nunito text-white text-xs font-bold bg-black/30 px-3 py-1 rounded-full">
+              {getCountdownLabel(story.slot)}
+            </span>
+          </div>
+        )}
+
         {/* Language badge */}
-        <span className="absolute top-3 left-3 bg-black/40 backdrop-blur-sm text-white text-[10px] font-nunito font-bold px-2.5 py-1 rounded-full">
+        <span className="absolute top-2 left-2 bg-black/40 backdrop-blur-sm text-white text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full">
           {langLabel}
         </span>
 
         {/* Category badge */}
-        <span className="absolute top-3 right-3 bg-white/80 text-gray-700 text-[10px] font-nunito font-bold px-2.5 py-1 rounded-full">
+        <span className="absolute top-2 right-2 bg-white/80 text-gray-700 text-[10px] font-nunito font-bold px-2 py-0.5 rounded-full">
           {catEmoji} {story.category}
-        </span>
-
-        {/* Duration */}
-        <span className="absolute bottom-3 right-3 bg-black/35 backdrop-blur-sm text-white text-[10px] font-nunito font-semibold px-2.5 py-1 rounded-full">
-          ⏱ ~3 min
         </span>
       </div>
 
-      {/* Text info */}
+      {/* Story info + CTA */}
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex-1 min-w-0 pr-3">
           <h3 className="font-baloo font-bold text-base text-gray-800 leading-tight line-clamp-1">
             {story.title}
           </h3>
-          <div className="flex items-center gap-1.5 mt-1">
-            <NaniAvatar size={20} animate="none" />
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <NaniAvatar size={18} animate="none" />
             <span className="font-nunito text-xs text-gray-400 font-semibold">{narrator.name}</span>
+            <span className="text-gray-200 mx-0.5">·</span>
+            <span className="font-nunito text-xs text-gray-400">⏱ ~3 min</span>
           </div>
         </div>
-        <motion.div
-          whileTap={{ scale: 0.88 }}
-          className="w-11 h-11 rounded-2xl bg-coral flex items-center justify-center text-white text-lg shadow-glow flex-shrink-0"
-        >
-          ▶
-        </motion.div>
+
+        {!isFuture ? (
+          <motion.div
+            whileTap={{ scale: 0.88 }}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-glow flex-shrink-0 ${
+              status === 'current' ? 'bg-coral' : 'bg-gray-300'
+            }`}
+          >
+            {status === 'current' ? '▶' : '↺'}
+          </motion.div>
+        ) : (
+          <div className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 text-lg flex-shrink-0">
+            🔒
+          </div>
+        )}
       </div>
     </motion.div>
   );
 }
 
-// ── Kathabox Loading State ─────────────────────────────────────────────────
+// ── Loading state ───────────────────────────────────────────────────────────
 
-function KathaboxLoading({ readyCount }: { readyCount: number }) {
-  const isInitial = readyCount === 0;
+function StoriesLoading({ readyCount }: { readyCount: number }) {
   const messages = [
     'Nani is preparing your stories, kanna…',
     'One story is ready! Two more coming…',
     'Almost there… one last story…',
   ];
+  const isInitial = readyCount === 0;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
-      animate={{
-        opacity: 1,
-        paddingTop: isInitial ? 48 : 16,
-        paddingBottom: isInitial ? 40 : 12,
-      }}
+      animate={{ opacity: 1, paddingTop: isInitial ? 48 : 16, paddingBottom: isInitial ? 40 : 12 }}
       transition={{ type: 'spring', stiffness: 160, damping: 22 }}
       className="flex flex-col items-center px-6"
     >
-      {/* Nani — hero size (160px) when no cards ready, shrinks to compact (72px) once cards arrive */}
       <motion.div
         animate={{ scale: isInitial ? 1 : 72 / 160 }}
         transition={{ type: 'spring', stiffness: 160, damping: 22 }}
@@ -167,8 +238,6 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
       >
         <NaniAvatar size={160} animate={isInitial ? 'float' : 'pulse'} />
       </motion.div>
-
-      {/* Message */}
       <motion.p
         key={readyCount}
         initial={{ opacity: 0, y: 4 }}
@@ -177,8 +246,6 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
       >
         {messages[readyCount] ?? messages[0]}
       </motion.p>
-
-      {/* KathaboxLogo — only shown while no cards are ready; exits when first card arrives */}
       <AnimatePresence>
         {isInitial && (
           <motion.div
@@ -192,8 +259,6 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Progress counter */}
       <motion.p
         key={`progress-${readyCount}`}
         initial={{ opacity: 0, scale: 0.85 }}
@@ -207,105 +272,16 @@ function KathaboxLoading({ readyCount }: { readyCount: number }) {
   );
 }
 
-// ── Locked Tomorrow Card ───────────────────────────────────────────────────
+// ── Today's Stories View ────────────────────────────────────────────────────
 
-function LockedStoryCard({
-  teaser,
-  index,
-  onTap,
-  tapped,
-}: {
-  teaser: StoryTeaser;
-  index: number;
-  onTap: () => void;
-  tapped: boolean;
-}) {
-  const langLabel = teaser.language === 'telugu' ? '🇮🇳 తెలుగు' : '🇬🇧 English';
-  const catStyle  = getCategoryStyle(teaser.category);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 40, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay: index * 0.12, type: 'spring', stiffness: 300, damping: 24 }}
-      onClick={onTap}
-      className="bg-white rounded-3xl overflow-hidden shadow-soft cursor-pointer active:scale-[0.98] transition-transform"
-    >
-      {/* Blurred illustration pane */}
-      <div className="relative w-full overflow-hidden" style={{ height: 180 }}>
-
-        {/* Blurred gradient background — category colour bleeds through like a painting behind frosted glass */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(135deg, ${catStyle.from} 0%, ${catStyle.to} 100%)`,
-            filter: 'blur(12px) brightness(0.72)',
-            transform: 'scale(1.1)', // prevent blur edge bleed
-          }}
-        />
-
-        {/* Language badge — unblurred */}
-        <span className="absolute top-3 left-3 z-10 bg-black/40 backdrop-blur-sm text-white text-[10px] font-nunito font-bold px-2.5 py-1 rounded-full">
-          {langLabel}
-        </span>
-
-        {/* Lock icon — center */}
-        <div className="absolute inset-0 z-10 flex items-center justify-center">
-          <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
-            <span style={{ fontSize: 22 }}>🔒</span>
-          </div>
-        </div>
-
-        {/* Category emoji — unblurred, bottom-center, gives genre hint */}
-        <div className="absolute bottom-3 left-0 right-0 z-10 flex justify-center">
-          <span style={{ fontSize: 40, opacity: 0.9 }}>{teaser.emoji}</span>
-        </div>
-
-        {/* "Opens tomorrow" toast — fades in when tapped */}
-        <AnimatePresence>
-          {tapped && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-3xl"
-            >
-              <p className="font-nunito font-bold text-white text-sm text-center px-4">
-                🌅 Opens tomorrow at sunrise
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Card footer */}
-      <div className="px-4 py-3 flex items-center justify-between">
-        <div className="flex-1 min-w-0 pr-3">
-          <p className="font-baloo font-bold text-sm text-gray-300 italic leading-tight">
-            Coming tomorrow…
-          </p>
-          <p className="font-nunito text-xs text-gray-300 mt-0.5">
-            {teaser.category}
-          </p>
-        </div>
-        <div className="w-11 h-11 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-300 text-lg flex-shrink-0">
-          🔒
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// ── Today's Stories View ───────────────────────────────────────────────────
+const SLOT_ORDER: StorySlot[] = ['morning', 'afternoon', 'evening'];
 
 function TodayStoriesView({ profile }: { profile: ChildProfile }) {
   const router = useRouter();
-  const [stories, setStories] = useState<DailyStory[]>([]);
+  const [stories, setStories]   = useState<DailyStory[]>([]);
   const [portraits, setPortraits] = useState<Record<string, string>>({});
-  const [tomorrowTeaser, setTomorrowTeaser] = useState<StoryTeaser[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [tappedLocked, setTappedLocked] = useState<number | null>(null);
-  // Guard against React StrictMode double-invocation of the effect
+  const [lockedToast, setLockedToast] = useState<string | null>(null);
   const generatingRef = useRef(false);
 
   const loadPortrait = useCallback(async (story: DailyStory) => {
@@ -318,59 +294,60 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
   useEffect(() => {
     const existing = getTodayStories();
     if (existing) {
-      // Deduplicate by id in case of prior buggy writes
       const unique = existing.stories.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
       setStories(unique);
-      setTomorrowTeaser(existing.tomorrowTeaser);
       unique.forEach(loadPortrait);
       return;
     }
 
-    // Prevent StrictMode double-run from firing two generation requests
     if (generatingRef.current) return;
     generatingRef.current = true;
 
-    // First open of the day — generate stories progressively
     setGenerating(true);
     generateDailyStories(profile, (story) => {
-      // Deduplicate in case of any re-render edge cases
       setStories(prev => prev.some(s => s.id === story.id) ? prev : [...prev, story]);
       loadPortrait(story);
-    }).then(data => {
-      setTomorrowTeaser(data.tomorrowTeaser);
+    }).then(() => {
       setGenerating(false);
     }).catch(() => {
       setGenerating(false);
-      generatingRef.current = false; // allow retry on error
+      generatingRef.current = false;
     });
   }, [profile, loadPortrait]);
 
   function playStory(story: DailyStory) {
-    // Fire cover portrait immediately on tap — warms HuggingFace model during navigation.
-    // No-op if already cached in IndexedDB; pays off on first play of a new daily story.
-    fetchIllustrationDataUrl(story.id, -1, story.story.title, 'magical', story.story.title, story.story.language, 90_000).catch(() => null);
-
     const params = new URLSearchParams({
-      title:    story.title,
-      category: story.category,
-      mood:     story.mood,
-      narrator: story.narratorId,
-      language: story.language,
+      title: story.title, category: story.category, mood: story.mood,
+      narrator: story.narratorId, language: story.language,
     });
     router.push(`/play/${encodeURIComponent(story.id)}?${params.toString()}`);
   }
 
-  const allReady = !generating && stories.length === 3;
-
-  function handleLockedTap(index: number) {
-    setTappedLocked(index);
-    setTimeout(() => setTappedLocked(null), 2000);
+  function handleLockedTap(slot: StorySlot) {
+    const unlockHour = SLOT_UNLOCK_HOURS[slot];
+    const label = `${SLOT_LABELS[slot].icon} Nani will have this ready at ${unlockHour < 12 ? `${unlockHour}am` : `${unlockHour - 12 || 12}pm`}`;
+    setLockedToast(label);
+    setTimeout(() => setLockedToast(null), 2500);
   }
+
+  // Sort stories into morning / afternoon / evening order
+  const storiesBySlot: Record<StorySlot, DailyStory | undefined> = {
+    morning:   stories.find(s => s.slot === 'morning'),
+    afternoon: stories.find(s => s.slot === 'afternoon'),
+    evening:   stories.find(s => s.slot === 'evening'),
+  };
+
+  // Fallback for old cached data that lacks slot field — assign by index
+  const fallbackOrder = [...stories];
+  const orderedStories: Array<{ slot: StorySlot; story: DailyStory | null }> = SLOT_ORDER.map((slot, i) => ({
+    slot,
+    story: storiesBySlot[slot] ?? fallbackOrder[i] ?? null,
+  }));
+
+  const allReady = !generating && stories.length >= 3;
 
   return (
     <div className="px-5">
-
-      {/* Kathabox section header — shown once all stories are ready */}
       <AnimatePresence>
         {allReady && (
           <motion.div
@@ -386,76 +363,48 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
         )}
       </AnimatePresence>
 
-      {/* Stories pop out from Kathabox */}
+      {/* Time-slot cards */}
       <div className="flex flex-col gap-4">
-        <AnimatePresence>
-          {stories.map((story, i) => (
-            <DailyStoryCard
+        {orderedStories.map(({ slot, story }) => {
+          if (!story) return null;
+          const status = getSlotStatus(slot);
+          return (
+            <TimeSlotCard
               key={story.id}
-              story={story}
+              story={{ ...story, slot }}
               portrait={portraits[story.id] ?? null}
-              index={i}
+              status={status}
               onPlay={() => playStory(story)}
+              onLockedTap={() => handleLockedTap(slot)}
             />
-          ))}
-        </AnimatePresence>
+          );
+        })}
       </div>
 
-      {/* Kathabox loading animation — shown below ready cards while generating */}
+      {/* Loading state — shown while generating */}
       <AnimatePresence>
         {generating && (
           <motion.div
-            key="kathabox-loading"
+            key="loading"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
           >
-            <KathaboxLoading readyCount={stories.length} />
+            <StoriesLoading readyCount={stories.length} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Locked tomorrow cards — shown once today's stories + teasers are ready */}
+      {/* Locked slot toast */}
       <AnimatePresence>
-        {tomorrowTeaser.length > 0 && (
+        {lockedToast && (
           <motion.div
-            key="tomorrow-section"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-8 mb-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 bg-gray-800/90 backdrop-blur-sm text-white text-sm font-nunito font-semibold px-4 py-2.5 rounded-2xl shadow-xl whitespace-nowrap"
           >
-            {/* Section divider */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-1 h-px bg-gray-100" />
-              <p className="font-nunito text-xs text-gray-400 font-semibold whitespace-nowrap">
-                ✨ Coming tomorrow
-              </p>
-              <div className="flex-1 h-px bg-gray-100" />
-            </div>
-
-            {/* Locked cards */}
-            <div className="flex flex-col gap-4">
-              {tomorrowTeaser.map((teaser, i) => (
-                <LockedStoryCard
-                  key={i}
-                  teaser={teaser}
-                  index={i}
-                  tapped={tappedLocked === i}
-                  onTap={() => handleLockedTap(i)}
-                />
-              ))}
-            </div>
-
-            {/* Sunrise banner */}
-            <motion.p
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="font-nunito text-xs text-gray-400 text-center mt-5 mb-2"
-            >
-              🌅 3 new stories unlock tomorrow at sunrise
-            </motion.p>
+            {lockedToast}
           </motion.div>
         )}
       </AnimatePresence>
@@ -463,12 +412,12 @@ function TodayStoriesView({ profile }: { profile: ChildProfile }) {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────
+// ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<ChildProfile | null>(null);
-  const [tab, setTab] = useState<Tab>('today');
+  const [profile, setProfile]     = useState<ChildProfile | null>(null);
+  const [tab, setTab]             = useState<Tab>('today');
   const [savedStories, setSavedStories] = useState<StoryRecommendation[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -499,7 +448,7 @@ export default function DiscoverPage() {
   }
 
   const savedCount = savedStories.length;
-  const cachedIds = new Set(savedStories.map(s => s.id).filter(id => hasStoryCached(id)));
+  const cachedIds  = new Set(savedStories.map(s => s.id).filter(id => hasStoryCached(id)));
 
   return (
     <div className="min-h-screen fun-bg pb-24">
@@ -542,7 +491,6 @@ export default function DiscoverPage() {
       </div>
 
       <AnimatePresence mode="wait">
-        {/* Today tab */}
         {tab === 'today' && (
           <motion.div
             key="today"
@@ -555,7 +503,6 @@ export default function DiscoverPage() {
           </motion.div>
         )}
 
-        {/* Saved tab */}
         {tab === 'saved' && (
           <motion.div
             key="saved"

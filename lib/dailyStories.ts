@@ -11,6 +11,21 @@ export interface StoryTeaser {
   language: 'english' | 'telugu';
 }
 
+export type StorySlot = 'morning' | 'afternoon' | 'evening';
+
+export const SLOT_LABELS: Record<StorySlot, { icon: string; label: string }> = {
+  morning:   { icon: '🌅', label: 'Morning Story'   },
+  afternoon: { icon: '☀️', label: 'Afternoon Story' },
+  evening:   { icon: '🌙', label: 'Evening Story'   },
+};
+
+/** Hour of day when each slot unlocks */
+export const SLOT_UNLOCK_HOURS: Record<StorySlot, number> = {
+  morning:   6,
+  afternoon: 12,
+  evening:   18,
+};
+
 export interface DailyStory {
   id: string;
   story: import('./claude').GeneratedStory;
@@ -19,6 +34,8 @@ export interface DailyStory {
   mood: string;
   narratorId: string;
   language: 'english' | 'telugu';
+  slot: StorySlot;
+  unlocksAt: number; // epoch ms
 }
 
 export interface DailyStoriesData {
@@ -154,11 +171,19 @@ const POPULAR_STORIES: Record<'english' | 'telugu', { title: string; category: s
 
 // ── Category / mood picking ────────────────────────────────────────────────
 
+function getSlotUnlocksAt(slot: StorySlot): number {
+  const d = new Date();
+  d.setHours(SLOT_UNLOCK_HOURS[slot], 0, 0, 0);
+  return d.getTime();
+}
+
 interface DailySlot {
   title: string;
   category: string;
   mood: string;
   language: 'english' | 'telugu';
+  slot: StorySlot;
+  unlocksAt: number;
 }
 
 function pickDailySlots(profile: ChildProfile): DailySlot[] {
@@ -190,9 +215,9 @@ function pickDailySlots(profile: ChildProfile): DailySlot[] {
   const tIdx  = seed % te.length;
 
   return [
-    { ...en[eIdx],  mood: moods[seed % moods.length],           language: 'english' },
-    { ...en[eIdx2], mood: moods[(seed + 1) % moods.length],     language: 'english' },
-    { ...te[tIdx],  mood: moods[(seed + 2) % moods.length],     language: 'telugu'  },
+    { ...en[eIdx],  mood: moods[seed % moods.length],           language: 'english', slot: 'morning'   as StorySlot, unlocksAt: getSlotUnlocksAt('morning')   },
+    { ...en[eIdx2], mood: moods[(seed + 1) % moods.length],     language: 'english', slot: 'afternoon' as StorySlot, unlocksAt: getSlotUnlocksAt('afternoon') },
+    { ...te[tIdx],  mood: moods[(seed + 2) % moods.length],     language: 'telugu',  slot: 'evening'   as StorySlot, unlocksAt: getSlotUnlocksAt('evening')   },
   ];
 }
 
@@ -254,11 +279,11 @@ export async function generateDailyStories(
   const date = todayDate();
   const stories: DailyStory[] = new Array(slots.length);
 
-  await Promise.all(slots.map(async (slot, i) => {
-    // Small stagger so all 3 don't hit Claude simultaneously
+  await Promise.all(slots.map(async (slotData, i) => {
+    // stagger: avoids hitting Claude simultaneously
     if (i > 0) await new Promise<void>(r => setTimeout(r, i * 300));
 
-    const { title, category, mood, language } = slot;
+    const { title, category, mood, language, slot, unlocksAt } = slotData;
     const storyId = `daily-${date}-${i}`;
 
     const generated = await generateStory(
@@ -284,6 +309,8 @@ export async function generateDailyStories(
       mood,
       narratorId: narrator.id,
       language,
+      slot,
+      unlocksAt,
     };
 
     stories[i] = dailyStory;

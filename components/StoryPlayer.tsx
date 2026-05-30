@@ -8,11 +8,13 @@ import type { GeneratedStory, StoryParagraph } from '@/lib/claude';
 import { generateStory } from '@/lib/claude';
 import type { Narrator } from '@/lib/narrators';
 import { getNarratorById, getDefaultNarrator } from '@/lib/narrators';
-import { getAudioForMood, MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
+import { MUSIC_VOLUME, type StoryMood } from '@/lib/audioMap';
 import { markPlayed, setCachedStory, getProfile, getAgeGroup } from '@/lib/storage';
 import { getTTSAudio, setTTSAudio, ttsCacheKey } from '@/lib/ttsCache';
-import { illustrationKey, getIllustration, setIllustration, deleteIllustrationsForStory } from '@/lib/illustrationCache';
+import { deleteIllustrationsForStory } from '@/lib/illustrationCache';
+import { preGenerateAllIllustrations } from '@/lib/illustrationFetcher';
 import { useTTS } from '@/lib/useTTS';
+import MoodAmbient from './MoodAmbient';
 
 const MUSIC_DUCK = 0.012; // nearly inaudible while TTS is speaking (~6% of normal)
 
@@ -242,16 +244,10 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     return p ? getAgeGroup(p.age) !== 'newborn' : true;
   });
 
-  const howlRef        = useRef<import('howler').Howl | null>(null);
-  const currentMoodRef = useRef<StoryMood>('calm');
-  const pausedRef      = useRef(false);
+  const howlRef    = useRef<import('howler').Howl | null>(null);
+  const pausedRef  = useRef(false);
   // In-memory TTS audio cache: paraIndex → base64. Keyed by -1 (intro) or 0+.
-  const audioCacheRef          = useRef<Map<number, string>>(new Map());
-  // Tracks which paragraph illustrations have been requested (prevents duplicate fetches).
-  // Pre-populated with indices already loaded during the play-page loading screen.
-  const illustrationFetchedRef = useRef<Set<number>>(
-    new Set(Object.keys(initialIllustrations ?? {}).map(Number))
-  );
+  const audioCacheRef = useRef<Map<number, string>>(new Map());
 
   const currentPara: StoryParagraph | null = paraIndex >= 0 ? currentStory.paragraphs[paraIndex] : null;
   const currentMood: StoryMood = (currentPara?.mood as StoryMood) ?? 'calm';
@@ -280,83 +276,15 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     }
   }, [storyId, prefetch]);
 
-  // ── Illustration prefetch ──────────────────────
-  // Fire-and-forget: fetches illustration for a paragraph, stores in IndexedDB,
-  // and adds to component state. Never blocks narration.
-  const prefetchIllustration = useCallback(async (
-    paraIdx: number,
-    sceneDesc: string,
-    mood: string,
-    title?: string, // only for intro portrait (paraIdx === -1)
-  ) => {
-    if (!sceneDesc && !title) return;
-    if (illustrationFetchedRef.current.has(paraIdx)) return;
-    illustrationFetchedRef.current.add(paraIdx);
-
-    const key = illustrationKey(storyId, paraIdx);
-
-    // 1. Check IndexedDB (instant, cached from previous play)
-    const cached = await getIllustration(key);
-    if (cached) {
-      setIllustrations(prev => ({ ...prev, [paraIdx]: cached }));
-      return;
-    }
-
-    // 2. Call the Claude SVG illustration API (~3–5s, no cold start)
-    try {
-      const storyTitle = currentStory.title;
-      const body = title && !sceneDesc
-        ? { title, mood, language: storyMeta.language }
-        : { scene_description: sceneDesc, mood, story_title: storyTitle, language: storyMeta.language };
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60_000);
-      let res: Response;
-      try {
-        res = await fetch('/api/stories/illustrate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-      } catch {
-        clearTimeout(timeoutId);
-        illustrationFetchedRef.current.delete(paraIdx);
-        return;
-      }
-
-      if (!res.ok) {
-        console.warn('Illustration failed para', paraIdx, res.status);
-        illustrationFetchedRef.current.delete(paraIdx);
-        return;
-      }
-      const { dataUrl } = await res.json() as { dataUrl?: string };
-      if (!dataUrl) {
-        illustrationFetchedRef.current.delete(paraIdx);
-        return;
-      }
-      setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
-      setIllustration(key, dataUrl); // persist for instant replay
-    } catch {
-      illustrationFetchedRef.current.delete(paraIdx);
-    }
-  }, [storyId, currentStory.title]);
-
-  // ── Music ──────────────────────────────────────
-  const startMusic = useCallback(async (mood: StoryMood) => {
-    if (!musicOn) return;
+  // ── Music — single exciting.mp3 track throughout ──
+  const startMusic = useCallback(async () => {
+    if (!musicOn || howlRef.current) return; // already playing
     const { Howl } = await import('howler');
-    if (howlRef.current) {
-      if (currentMoodRef.current === mood) return;
-      howlRef.current.fade(howlRef.current.volume(), 0, 600);
-      setTimeout(() => howlRef.current?.unload(), 700);
-    }
-    currentMoodRef.current = mood;
-    const src = getAudioForMood(mood, storyId);
     howlRef.current = new Howl({
-      src: [src], loop: true, volume: 0,
-      html5: true, // stream static file instead of waiting for full Web Audio decode
+      src: ['/audio/exciting.mp3'],
+      loop: true,
+      volume: 0,
+      html5: true,
       onload()      { howlRef.current?.fade(0, MUSIC_VOLUME, 800); },
       onloaderror() { /* audio file not present — skip silently */ },
     });
@@ -422,13 +350,15 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
 
     prewarm();
 
-    // Fire all illustrations on mount — the global queue + dedup in illustrationFetcher
-    // ensures max 1 Sonnet call in-flight and no duplicate API calls even if kickOff
-    // already enqueued the same keys.
-    prefetchIllustration(-1, '', 'magical', currentStory.title);
-    currentStory.paragraphs.forEach((p, i) => {
-      prefetchIllustration(i, p.scene_description, p.mood);
-    });
+    // Fire all 11 illustration requests immediately (cover + 10 scenes).
+    // Global queue (max 2 concurrent) ensures Imagen 3 rate limits are respected.
+    // IndexedDB cache means replays are instant with zero API calls.
+    preGenerateAllIllustrations(
+      currentStory,
+      storyId,
+      storyMeta.language,
+      (paraIdx, dataUrl) => setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl })),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -455,60 +385,47 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   // ── Auto-advance paragraphs ─────────────────────
   useEffect(() => {
     if (pausedRef.current) return;
+    let preDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
     if (paraIndex === -1) {
       setIntroFinished(false);
-      // Look-ahead: load scenes 0 + 1 during the cover phase (~15s of intro TTS)
-      if (currentStory.paragraphs[0]) {
-        loadParaAudio(0, currentStory.paragraphs[0].text);
-        prefetchIllustration(0, currentStory.paragraphs[0].scene_description, currentStory.paragraphs[0].mood);
-      }
-      if (currentStory.paragraphs[1]) {
-        prefetchIllustration(1, currentStory.paragraphs[1].scene_description, currentStory.paragraphs[1].mood);
-      }
+      startMusic(); // single exciting.mp3 starts here, plays all the way through
 
       const cached = audioCacheRef.current.get(-1);
-      // 500 ms pause — user sees the cover before narration begins
-      setTimeout(() => {
+      // 600ms pause — child sees the cover/title before Nani speaks
+      preDelayTimer = setTimeout(() => {
+        if (pausedRef.current) return;
         if (!cached) setTtsLoading(true);
         speak(currentStory.narrator_intro, storyLanguage, () => {
           // Reveal "BEGIN STORY" button; auto-advance after 2s so tapping is optional
           setIntroFinished(true);
           setTimeout(() => setParaIndex(prev => prev === -1 ? 0 : prev), 2000);
         }, cached);
-      }, 500);
+      }, 600);
 
     } else if (paraIndex < totalSlides) {
       const para = currentStory.paragraphs[paraIndex];
-      startMusic(para.mood as StoryMood);
-
-      // Look-ahead: load N+1 and N+2 illustrations + N+1 audio while narrating N
-      if (paraIndex < totalSlides - 1) {
-        const next = currentStory.paragraphs[paraIndex + 1];
-        if (next) {
-          loadParaAudio(paraIndex + 1, next.text);
-          prefetchIllustration(paraIndex + 1, next.scene_description, next.mood);
-        }
-      }
-      if (paraIndex < totalSlides - 2) {
-        const nextNext = currentStory.paragraphs[paraIndex + 2];
-        if (nextNext) prefetchIllustration(paraIndex + 2, nextNext.scene_description, nextNext.mood);
-      }
-      // Ensure current paragraph illustration is fetched (covers edge cases)
-      prefetchIllustration(paraIndex, para.scene_description, para.mood);
-
       const cached = audioCacheRef.current.get(paraIndex);
       if (!cached) setTtsLoading(true);
-      speak(para.text, storyLanguage, () => {
-        if (paraIndex < totalSlides - 1) {
-          setTimeout(() => setParaIndex(p => p + 1), 300);
-        } else {
-          setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
-        }
-      }, cached);
+
+      // 350ms look pause — child sees the illustration before Nani narrates
+      preDelayTimer = setTimeout(() => {
+        if (pausedRef.current) return;
+        speak(para.text, storyLanguage, () => {
+          if (paraIndex < totalSlides - 1) {
+            // 500ms post-narration pause — less rushed, natural breath between pages
+            setTimeout(() => setParaIndex(p => p + 1), 500);
+          } else {
+            setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
+          }
+        }, cached);
+      }, 350);
     }
 
-    return () => { stop(); };
+    return () => {
+      stop();
+      if (preDelayTimer) clearTimeout(preDelayTimer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paraIndex]);
 
@@ -555,7 +472,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   }
 
   function toggleMusic() {
-    if (musicOn) { stopMusic(); } else { if (currentPara) startMusic(currentPara.mood as StoryMood); }
+    if (musicOn) { stopMusic(); } else { startMusic(); }
     setMusicOn(p => !p);
   }
 
@@ -597,10 +514,16 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       });
       // Clear old illustrations — new story has new scenes
       deleteIllustrationsForStory(storyId, currentStory.paragraphs.length);
-      illustrationFetchedRef.current.clear();
       setIllustrations({});
       setIntroFinished(false);
       setCurrentStory(fresh);
+      // Re-fire all illustration requests for the fresh story
+      preGenerateAllIllustrations(
+        fresh,
+        storyId,
+        storyMeta.language,
+        (paraIdx, dataUrl) => setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl })),
+      );
       setParaIndex(-1);
     } catch {
       setEnded(true); // restore end screen on failure
@@ -824,8 +747,10 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           )}
         </AnimatePresence>
 
-        {/* Pollinations AI illustration — zIndex 5, crossfades OVER SceneCard when ready.
-            Key changes only when displayParaIdx changes (max 1 step back fallback). */}
+        {/* Imagen 3 illustration — zIndex 5, crossfades OVER SceneCard when ready.
+            Key changes only when displayParaIdx changes (max 1 step back fallback).
+            400ms cross-dissolve matches the 350ms look pause so image is fully visible
+            before narration begins. */}
         <AnimatePresence>
           {showIllustrations && displayIllus && (
             <motion.div
@@ -835,7 +760,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.4 }}
             >
               <div
                 className="absolute inset-0"
@@ -848,6 +773,11 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Mood ambient Lottie overlay — subtle animated layer on top of illustration */}
+        {showIllustrations && paraIndex >= 0 && (
+          <MoodAmbient mood={currentMood} />
+        )}
 
       </div>
 
