@@ -108,26 +108,73 @@ export function saveDailyStoryAsPlayed(story: DailyStory): void {
   } catch { /* ignore */ }
 }
 
+// ── Popular story lists (ranked most-to-least universally known) ──────────
+
+const POPULAR_STORIES: Record<'english' | 'telugu', { title: string; category: string }[]> = {
+  english: [
+    { title: 'Cinderella',                       category: 'Fairy Tales' },
+    { title: 'The Three Little Pigs',             category: 'Animals' },
+    { title: 'Goldilocks and the Three Bears',    category: 'Adventure' },
+    { title: 'Little Red Riding Hood',            category: 'Adventure' },
+    { title: 'Snow White',                        category: 'Fairy Tales' },
+    { title: 'Jack and the Beanstalk',            category: 'Magic' },
+    { title: 'Sleeping Beauty',                   category: 'Fairy Tales' },
+    { title: 'The Ugly Duckling',                 category: 'Animals' },
+    { title: 'The Tortoise and the Hare',         category: 'Animals' },
+    { title: 'Beauty and the Beast',              category: 'Fairy Tales' },
+    { title: 'Rapunzel',                          category: 'Fairy Tales' },
+    { title: 'Pinocchio',                         category: 'Magic' },
+    { title: 'The Little Mermaid',                category: 'Magic' },
+    { title: 'Peter Pan',                         category: 'Adventure' },
+    { title: 'The Jungle Book',                   category: 'Animals' },
+    { title: 'Aladdin',                           category: 'Magic' },
+    { title: 'Hansel and Gretel',                 category: 'Adventure' },
+    { title: 'The Lion and the Mouse',            category: 'Animals' },
+    { title: 'The Gingerbread Man',               category: 'Adventure' },
+    { title: 'Thumbelina',                        category: 'Magic' },
+  ],
+  telugu: [
+    { title: 'Baby Krishna and the Butter',       category: 'Krishna Stories' },
+    { title: 'The Monkey and the Crocodile',      category: 'Panchatantra' },
+    { title: 'Tenali Rama and the Cats',          category: 'Tenali Rama' },
+    { title: 'The Blue Jackal',                   category: 'Panchatantra' },
+    { title: 'Krishna Lifts Govardhan Hill',      category: 'Krishna Stories' },
+    { title: 'The Wise Monkey King',              category: 'Jataka Tales' },
+    { title: "Birbal's Khichdi",                  category: 'Tenali Rama' },
+    { title: 'The Golden Goose',                  category: 'Jataka Tales' },
+    { title: 'Ganesha and the Mango Race',        category: 'Krishna Stories' },
+    { title: 'The Crow and the Pitcher',          category: 'Panchatantra' },
+    { title: 'Tenali Rama and the Thieves',       category: 'Tenali Rama' },
+    { title: 'The Rabbit and the Lion',           category: 'Panchatantra' },
+    { title: 'Krishna and the Serpent Kaliya',    category: 'Krishna Stories' },
+    { title: 'The Banyan Deer',                   category: 'Jataka Tales' },
+    { title: 'The Story of Ganesha and the Moon', category: 'Krishna Stories' },
+  ],
+};
+
 // ── Category / mood picking ────────────────────────────────────────────────
 
-function pickDailySlots(profile: ChildProfile): { category: string; mood: string; language: 'english' | 'telugu' }[] {
-  const cats = profile.favouriteCategories.length > 0
-    ? profile.favouriteCategories
-    : ['Animals', 'Magic', 'Adventure'];
+interface DailySlot {
+  title: string;
+  category: string;
+  mood: string;
+  language: 'english' | 'telugu';
+}
 
-  // Seed shuffle deterministically by today's date so the order is stable
-  // within a day but different each day.
+function pickDailySlots(): DailySlot[] {
   const dateSeed = parseInt(todayDate().replace(/-/g, ''), 10);
-  const shuffled = [...cats].sort((a, b) => {
-    const ha = ((a.charCodeAt(0) * dateSeed) % 97);
-    const hb = ((b.charCodeAt(0) * dateSeed) % 97);
-    return ha - hb;
-  });
+  const en = POPULAR_STORIES.english;
+  const te = POPULAR_STORIES.telugu;
+
+  // Pick two different English stories for today using consecutive indices
+  const eIdx  = dateSeed % en.length;
+  const eIdx2 = (eIdx + 1) % en.length;
+  const tIdx  = dateSeed % te.length;
 
   return [
-    { category: shuffled[0] ?? 'Animals',    mood: MOODS[dateSeed % 4],           language: 'english' },
-    { category: shuffled[1] ?? 'Adventure',  mood: MOODS[(dateSeed + 1) % 4],     language: 'english' },
-    { category: shuffled[2] ?? shuffled[0] ?? 'Magic', mood: MOODS[(dateSeed + 2) % 4], language: 'telugu' },
+    { ...en[eIdx],  mood: MOODS[dateSeed % 4],       language: 'english' },
+    { ...en[eIdx2], mood: MOODS[(dateSeed + 1) % 4], language: 'english' },
+    { ...te[tIdx],  mood: MOODS[(dateSeed + 2) % 4], language: 'telugu' },
   ];
 }
 
@@ -159,7 +206,7 @@ function pickTomorrowTeaser(profile: ChildProfile, todayCategories: string[]): S
 
 // ── Illustration kick-off ──────────────────────────────────────────────────
 
-/** Fire all 12 scene illustrations + portrait for a story — fire-and-forget. */
+/** Fire all 15 scene illustrations + portrait for a story — fire-and-forget. */
 export function kickOffIllustrations(story: DailyStory): void {
   const { id, story: generated } = story;
   // Portrait (paraIdx -1)
@@ -183,16 +230,16 @@ export async function generateDailyStories(
 ): Promise<DailyStoriesData> {
   const narrator = getDefaultNarrator(); // Nani
   const ageGroup = getAgeGroup(profile.age);
-  const slots = pickDailySlots(profile);
+  const slots = pickDailySlots();
   const date = todayDate();
   const stories: DailyStory[] = [];
 
   for (let i = 0; i < slots.length; i++) {
-    const { category, mood, language } = slots[i];
+    const { title, category, mood, language } = slots[i];
     const storyId = `daily-${date}-${i}`;
 
     const generated = await generateStory(
-      category,   // passed as title seed; generateTitle=true lets Claude pick the real title
+      title,      // well-known popular title — tells the classic story faithfully
       category,
       mood,
       profile.name,
@@ -203,7 +250,7 @@ export async function generateDailyStories(
       profile.gender,
       profile.favouriteCategories,
       language,
-      true,       // generateTitle — Claude invents the story title
+      false,      // generateTitle=false — use the provided popular title
     );
 
     const dailyStory: DailyStory = {
@@ -235,7 +282,7 @@ export async function generateDailyStories(
     kickOffIllustrations(dailyStory);
   }
 
-  const tomorrowTeaser = pickTomorrowTeaser(profile, slots.map(s => s.category));
+  const tomorrowTeaser = pickTomorrowTeaser(profile, slots.map((s: DailySlot) => s.category));
 
   const data: DailyStoriesData = {
     date,

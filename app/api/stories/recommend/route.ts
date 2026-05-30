@@ -18,15 +18,17 @@ Age group guidance: ${ageGuidance}
 
 IMPORTANT LANGUAGE RULE: Return either 1 or 2 Telugu/Indian stories (choose randomly each time — vary it naturally) and the remaining stories as English/Western, for a total of 10. Mark Telugu stories with "language": "telugu" and English stories with "language": "english".
 
-Western classics to draw from:
-Goldilocks and the Three Bears, The Three Little Pigs, Cinderella, Snow White, Sleeping Beauty, Jack and the Beanstalk, Little Red Riding Hood, Rapunzel, Hansel and Gretel, The Ugly Duckling, The Tortoise and the Hare, The Lion and the Mouse, Rumpelstiltskin, Thumbelina, Puss in Boots, The Gingerbread Man, Beauty and the Beast, The Little Mermaid, Pinocchio, Peter Pan, Winnie the Pooh and the Honey Tree, Curious George, The Velveteen Rabbit, Bambi, Dumbo, The Jungle Book, Aladdin, Ali Baba and the Forty Thieves, Sinbad the Sailor.
+POPULARITY RULE: Always prioritise the most universally known and beloved titles first. Every child should encounter Cinderella before Rumpelstiltskin, and Baby Krishna before Vikram and Betaal. Lead with the stories every parent and child already knows.
 
-Indian & Telugu classics to draw from:
-Panchatantra — The Monkey and the Crocodile, The Blue Jackal, The Crow and the Pitcher, The Greedy Dog, The Rabbit and the Lion, The Foolish Donkey, The Wise Old Crane, Two Cats and a Monkey;
-Tenali Rama — Tenali Rama and the Cats, Tenali Rama and the Jinx, Tenali Rama and the Thieves, Tenali Rama and the King's Dream, The Brinjal Garden;
+Western classics to draw from (listed most-popular first):
+Cinderella, The Three Little Pigs, Goldilocks and the Three Bears, Little Red Riding Hood, Snow White, Jack and the Beanstalk, Sleeping Beauty, The Ugly Duckling, The Tortoise and the Hare, Beauty and the Beast, Rapunzel, Pinocchio, The Little Mermaid, Peter Pan, The Jungle Book, Aladdin, Hansel and Gretel, The Lion and the Mouse, The Gingerbread Man, Thumbelina, Puss in Boots, Rumpelstiltskin, Winnie the Pooh and the Honey Tree, Curious George, The Velveteen Rabbit, Bambi, Dumbo, Ali Baba and the Forty Thieves, Sinbad the Sailor.
+
+Indian & Telugu classics to draw from (listed most-popular first):
+Krishna stories — Baby Krishna and the Butter, Krishna Lifts Govardhan Hill, Krishna and the Serpent Kaliya, Krishna and the Demon Putana, Ganesha and the Mango Race, The Story of Ganesha and the Moon;
+Panchatantra — The Monkey and the Crocodile, The Blue Jackal, The Crow and the Pitcher, The Rabbit and the Lion, The Greedy Dog, The Foolish Donkey, The Wise Old Crane, Two Cats and a Monkey;
+Tenali Rama — Tenali Rama and the Cats, Tenali Rama and the Thieves, Tenali Rama and the King's Dream, Tenali Rama and the Jinx, The Brinjal Garden;
 Jataka Tales — The Wise Monkey King, The Banyan Deer, The Golden Goose, The Elephant and the Dog;
-Krishna stories — Baby Krishna and the Butter, Krishna Lifts Govardhan Hill, Krishna and the Serpent Kaliya, Krishna and the Demon Putana;
-Other Indian classics — Vikram and Betaal, Akbar and Birbal (The Wise Answer, Birbal's Khichdi), Chandamama folk tales (The Moon Uncle, The Magic Drum, The Wishing Tree), Raja Harishchandra, The Story of Ganesha and the Moon, Ganesha and the Mango Race.
+Other Indian classics — Akbar and Birbal (Birbal's Khichdi, The Wise Answer), Vikram and Betaal, Chandamama folk tales (The Moon Uncle, The Magic Drum, The Wishing Tree), Raja Harishchandra.
 
 Previously liked stories: ${likedStories.length ? likedStories.join(', ') : 'none yet'}
 Previously disliked stories: ${dislikedStories.length ? dislikedStories.join(', ') : 'none yet'}

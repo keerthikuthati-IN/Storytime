@@ -229,6 +229,8 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
   const [ttsLoading, setTtsLoading]       = useState(false);
   const [regenerating, setRegenerating]   = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  // True once the intro (narrator_intro) TTS finishes — reveals the BEGIN STORY button
+  const [introFinished, setIntroFinished] = useState(false);
   // Seed with illustrations pre-loaded during the play-page loading screen
   const [illustrations, setIllustrations] = useState<Record<number, string>>(
     initialIllustrations ?? {}
@@ -300,48 +302,40 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       return;
     }
 
-    // 2. Ask the server to build a child-safe Pollinations URL
+    // 2. Call the API — server fetches from Pollinations and returns a data URL directly.
+    //    The 25s timeout covers the full round-trip including server-side generation.
     try {
       const storyTitle = currentStory.title;
       const body = title && !sceneDesc
-        ? { title, mood }                                              // portrait mode
-        : { scene_description: sceneDesc, mood, story_title: storyTitle }; // scene mode
-      const res = await fetch('/api/stories/illustrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const { imageUrl } = await res.json() as { imageUrl?: string };
-      if (!imageUrl) {
-        illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
-        return;
-      }
+        ? { title, mood }
+        : { scene_description: sceneDesc, mood, story_title: storyTitle };
 
-      // 3. Fetch the actual image with a 12 s timeout.
-      // On slow mobile connections, Pollinations can hang indefinitely without a timeout,
-      // permanently blocking the illustrationFetchedRef entry and preventing any retry.
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12_000);
-      let imgRes: Response;
+      const timeoutId = setTimeout(() => controller.abort(), 25_000);
+      let res: Response;
       try {
-        imgRes = await fetch(imageUrl, { signal: controller.signal });
+        res = await fetch('/api/stories/illustrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
         clearTimeout(timeoutId);
       } catch {
         clearTimeout(timeoutId);
-        illustrationFetchedRef.current.delete(paraIdx); // timeout/network error → allow retry
+        illustrationFetchedRef.current.delete(paraIdx); // timeout → allow retry
         return;
       }
-      if (!imgRes.ok) {
-        illustrationFetchedRef.current.delete(paraIdx); // allow retry on next look-ahead call
+
+      if (!res.ok) {
+        illustrationFetchedRef.current.delete(paraIdx); // server error → allow retry
         return;
       }
-      const blob = await imgRes.blob();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror   = reject;
-        reader.readAsDataURL(blob);
-      });
+      const { dataUrl } = await res.json() as { dataUrl?: string };
+      if (!dataUrl) {
+        illustrationFetchedRef.current.delete(paraIdx);
+        return;
+      }
       setIllustrations(prev => ({ ...prev, [paraIdx]: dataUrl }));
       setIllustration(key, dataUrl); // persist for instant replay
     } catch {
@@ -453,18 +447,24 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
     if (pausedRef.current) return;
 
     if (paraIndex === -1) {
-      // Look-ahead: start loading para 0 in background while intro plays
+      setIntroFinished(false);
+      // Look-ahead: load scenes 0 + 1 during the cover phase (~15s of intro TTS)
       if (currentStory.paragraphs[0]) {
         loadParaAudio(0, currentStory.paragraphs[0].text);
         prefetchIllustration(0, currentStory.paragraphs[0].scene_description, currentStory.paragraphs[0].mood);
       }
+      if (currentStory.paragraphs[1]) {
+        prefetchIllustration(1, currentStory.paragraphs[1].scene_description, currentStory.paragraphs[1].mood);
+      }
 
       const cached = audioCacheRef.current.get(-1);
-      // 500 ms pause — user sees the portrait/SceneCard before narration begins
+      // 500 ms pause — user sees the cover before narration begins
       setTimeout(() => {
         if (!cached) setTtsLoading(true);
         speak(currentStory.narrator_intro, storyLanguage, () => {
-          setTimeout(() => setParaIndex(0), 400);
+          // Reveal "BEGIN STORY" button; auto-advance after 2s so tapping is optional
+          setIntroFinished(true);
+          setTimeout(() => setParaIndex(prev => prev === -1 ? 0 : prev), 2000);
         }, cached);
       }, 500);
 
@@ -472,13 +472,17 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       const para = currentStory.paragraphs[paraIndex];
       startMusic(para.mood as StoryMood);
 
-      // Look-ahead: start loading next paragraph + illustration while this one plays
+      // Look-ahead: load N+1 and N+2 illustrations + N+1 audio while narrating N
       if (paraIndex < totalSlides - 1) {
         const next = currentStory.paragraphs[paraIndex + 1];
         if (next) {
           loadParaAudio(paraIndex + 1, next.text);
           prefetchIllustration(paraIndex + 1, next.scene_description, next.mood);
         }
+      }
+      if (paraIndex < totalSlides - 2) {
+        const nextNext = currentStory.paragraphs[paraIndex + 2];
+        if (nextNext) prefetchIllustration(paraIndex + 2, nextNext.scene_description, nextNext.mood);
       }
       // Ensure current paragraph illustration is fetched (covers edge cases)
       prefetchIllustration(paraIndex, para.scene_description, para.mood);
@@ -487,7 +491,6 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       if (!cached) setTtsLoading(true);
       speak(para.text, storyLanguage, () => {
         if (paraIndex < totalSlides - 1) {
-          // All scene illustrations are pre-loaded before narration starts.
           setTimeout(() => setParaIndex(p => p + 1), 300);
         } else {
           setTimeout(() => { setEnded(true); stopMusic(); markPlayed(storyId); }, 800);
@@ -586,6 +589,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
       deleteIllustrationsForStory(storyId, currentStory.paragraphs.length);
       illustrationFetchedRef.current.clear();
       setIllustrations({});
+      setIntroFinished(false);
       setCurrentStory(fresh);
       setParaIndex(-1);
     } catch {
@@ -733,6 +737,37 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
+        {/* Book Cover: story-specific emoji floaters — only during intro slide */}
+        <AnimatePresence>
+          {paraIndex === -1 && currentStory.scene_emojis && (
+            <motion.div
+              key="cover-emojis"
+              className="absolute inset-0 z-20 pointer-events-none overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1 }}
+            >
+              {[
+                currentStory.scene_emojis.hero,
+                ...currentStory.scene_emojis.world,
+                ...currentStory.scene_emojis.accent,
+              ].map((emoji, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute select-none"
+                  style={{ left: `${8 + (i * 14) % 80}%`, fontSize: 24 + (i % 3) * 8, opacity: 0.55 }}
+                  initial={{ y: '110%' }}
+                  animate={{ y: '-15%' }}
+                  transition={{ duration: 12 + i * 1.5, repeat: Infinity, delay: i * 0.8, ease: 'linear' }}
+                >
+                  {emoji}
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* SceneCard — always-on base layer, mode="sync" ensures never blank between scenes.
             Old card fades out while new one fades in simultaneously (no empty gap).
             AI illustration at zIndex 5 covers it when Pollinations delivers. */}
@@ -755,6 +790,31 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
           </motion.div>
         </AnimatePresence>
 
+        {/* Shimmer skeleton — warm parchment sweep while an illustration generates.
+            Shows only on story scenes (not on the cover/intro), and only when the
+            current scene has no illustration yet (including the 1-step-back fallback). */}
+        <AnimatePresence>
+          {showIllustrations && paraIndex >= 0 && displayIllus == null && (
+            <motion.div
+              key={`shimmer-${paraIndex}`}
+              className="absolute inset-0 illus-shimmer"
+              style={{ zIndex: 4 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="absolute bottom-6 left-0 right-0 flex justify-center">
+                <motion.span
+                  style={{ fontSize: 28, opacity: 0.35 }}
+                  animate={{ opacity: [0.2, 0.5, 0.2] }}
+                  transition={{ duration: 1.8, repeat: Infinity }}
+                >🖌️</motion.span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Pollinations AI illustration — zIndex 5, crossfades OVER SceneCard when ready.
             Key changes only when displayParaIdx changes (max 1 step back fallback). */}
         <AnimatePresence>
@@ -773,7 +833,7 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
                 style={{
                   backgroundImage: `url(${displayIllus})`,
                   backgroundSize: 'cover',
-                  backgroundPosition: 'center top',
+                  backgroundPosition: 'center center',
                 }}
               />
             </motion.div>
@@ -797,12 +857,41 @@ export default function StoryPlayer({ story, narrator, storyId, fromCache, story
             >
               {paraIndex === -1 ? (
                 <div className="text-center">
-                  <p className="font-baloo font-bold text-xl text-gray-800 mb-1.5 leading-snug">
+                  <p className="font-baloo font-bold text-xl text-gray-800 mb-1 leading-snug">
                     {currentStory.title}
                   </p>
-                  <p className="font-nunito text-gray-600 text-sm leading-relaxed italic">
+                  <p className="font-nunito text-gray-500 text-xs leading-relaxed italic mb-2">
                     {currentStory.narrator_intro}
                   </p>
+
+                  {/* "Painting the scenes" indicator — shows until we have enough illustrations */}
+                  {Object.keys(illustrations).length < 3 && (
+                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                      <span className="text-sm">🖌️</span>
+                      <span className="font-nunito text-xs text-gray-400">Nani is painting the scenes</span>
+                      {[0, 0.2, 0.4].map(d => (
+                        <motion.span key={d} className="w-1 h-1 rounded-full bg-gray-300 inline-block"
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{ duration: 0.9, repeat: Infinity, delay: d }} />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* BEGIN STORY button — revealed after intro TTS finishes */}
+                  <AnimatePresence>
+                    {introFinished && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.9, y: 6 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+                        onClick={() => { stop(); setParaIndex(0); }}
+                        className="mt-1 px-6 py-2.5 rounded-full bg-coral text-white font-nunito font-bold text-sm shadow-glow"
+                      >
+                        Begin Story ▶
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
                 </div>
               ) : (
                 <p className="font-nunito text-gray-700 text-base leading-relaxed text-center">

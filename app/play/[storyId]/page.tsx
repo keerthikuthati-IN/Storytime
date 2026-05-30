@@ -209,33 +209,28 @@ export default function PlayPage({ params }: PageProps) {
           });
         }
 
-        // ── Phase 2: block on ALL story scene illustrations ───────────────────
-        // Portrait fires in parallel but doesn't gate — SceneCard is fine for
-        // the ~5 s title intro. Every story scene (0–N) must be ready before
-        // narration starts so the user never sees emoji fallbacks mid-story.
+        // ── Phase 2: pre-load only portrait + first 2 scenes ──────────────────
+        // We no longer block on all illustrations. The StoryPlayer "Book Cover"
+        // intro slide (~15s of Nani's narrator_intro TTS) gives ample time for
+        // Scene 0 to load, and the double look-ahead loads the rest during narration.
         setLoadingPhase('illustrations');
         const sid = decodeURIComponent(storyId);
-        const sceneCount = storyData.paragraphs.length;
-        setIllusTotal(sceneCount);
+        setIllusTotal(storyData.paragraphs.length);
 
-        // Portrait races alongside scenes — collected at the end once scenes finish.
-        const portraitPromise = fetchIllustrationDataUrl(
-          sid, -1, storyData.title, 'magical', storyData.title, 15_000
-        ).catch(() => null);
+        const p0 = storyData.paragraphs[0];
+        const p1 = storyData.paragraphs[1];
 
-        // All story scenes in parallel — each has a 15 s timeout.
+        const [portraitUrl, scene0Url, scene1Url] = await Promise.all([
+          fetchIllustrationDataUrl(sid, -1, storyData.title, 'magical', storyData.title, 8_000).catch(() => null),
+          p0 ? fetchIllustrationDataUrl(sid, 0, p0.scene_description, p0.mood, storyData.title, 8_000).catch(() => null) : null,
+          p1 ? fetchIllustrationDataUrl(sid, 1, p1.scene_description, p1.mood, storyData.title, 10_000).catch(() => null) : null,
+        ]);
+
         const initialIllus: Record<number, string> = {};
-        await Promise.all(
-          storyData.paragraphs.map((p, i) =>
-            fetchIllustrationDataUrl(sid, i, p.scene_description, p.mood, storyData.title, 15_000)
-              .then(url => { if (url) initialIllus[i] = url; setIllusReady(prev => prev + 1); })
-              .catch(()  => { setIllusReady(prev => prev + 1); })
-          )
-        );
-
-        // Portrait ran in parallel — already resolved by now (or timed out).
-        const portraitUrl = await portraitPromise;
         if (portraitUrl) initialIllus[-1] = portraitUrl;
+        if (scene0Url)   initialIllus[0]  = scene0Url;
+        if (scene1Url)   initialIllus[1]  = scene1Url;
+        setIllusReady(Object.keys(initialIllus).length);
 
         setInitialIllustrations(initialIllus);
         setStory(storyData);

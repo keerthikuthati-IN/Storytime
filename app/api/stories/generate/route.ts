@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const AGE_VOCABULARY: Record<string, string> = {
       'newborn':       'Use only simple sensory words — warm, soft, gentle, cozy, quiet. One very soft sentence per scene, maximum. No plot or conflict. Pure warmth and magic.',
       'toddler':       'Use very simple words (1-2 syllables where possible). Gentle rhythm and repetition. Rich sensory details — soft, warm, cozy, sleepy.',
-      'early-learner': 'Use vivid vocabulary with interesting imagery. Simple but expressive language. A gentle narrative arc across the 12 scenes.',
+      'early-learner': 'Use vivid vocabulary with interesting imagery. Simple but expressive language. A gentle narrative arc across the 15 scenes.',
     };
 
     const genderHint = gender === 'girl' ? 'The child is a girl — use she/her pronouns if the child appears in the story.' : gender === 'boy' ? 'The child is a boy — use he/him pronouns if the child appears in the story.' : '';
@@ -34,7 +34,7 @@ ${interestsHint}
 ${languageInstruction}
 
 PICTURE BOOK FORMAT — THIS IS CRITICAL:
-Write exactly 12 scenes. Each scene is 2–3 concise sentences — no filler, no padding, every word earns its place. One vivid moment per scene, like a picture book page read aloud by Nani while the child looks at the illustration. Short words, strong images, natural rhythm when spoken aloud. ${ageVocabulary}
+Write exactly 15 scenes. Each scene is 2–3 concise sentences — no filler, no padding, every word earns its place. One vivid moment per scene, like a picture book page read aloud by Nani while the child looks at the illustration. Short words, strong images, natural rhythm when spoken aloud. ${ageVocabulary}
 Build a gentle arc: wonder → warmth → calm → sleepy. End the final scene with the world going soft and still, guiding the child toward sleep.
 
 ${generateTitle ? 'Create a fresh, original story with memorable characters.' : 'Stay true to the beloved original story. Use classic characters, key plot moments, and the satisfying ending parents and children know.'}
@@ -64,12 +64,12 @@ Return JSON in this exact shape:
     }
   ]
 }
-IMPORTANT: The paragraphs array must contain EXACTLY 12 items — no more, no less.
+IMPORTANT: The paragraphs array must contain EXACTLY 15 items — no more, no less.
 For the emotion field: use 'sleepy' for the last scene, 'happy' for joyful moments, 'wonder' for magical/surprising scenes, 'excited' for action, 'concerned' for tense moments (gentle concern, never frightened), 'idle' for calm narration.`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 5500,
       system: `You are a master children's storyteller for Indian families. You know both Western fairy tales and Indian classics — Panchatantra, Tenali Rama, Jataka Tales, Krishna stories, folk tales. Stories must feel warm and intimate, as if told by a loving Indian grandmother called Nani. Use simple vocabulary, short sentences, and rich sensory language. ${isTelugu ? 'Nani naturally uses warm South Indian endearments like "kanna" and "bangaram" — use them sparingly (once or twice per story) at emotionally warm moments, never in every sentence.' : 'Nani uses gentle English endearments like "little one", "sweetheart", or "dearest" — use them sparingly (once or twice per story) at emotionally warm moments, never in every sentence. Do NOT use Telugu or South Indian words like kanna or bangaram in English stories.'} For each paragraph emotion field, describe how Nani — a warm, nurturing Indian grandmother — feels while narrating. A scary moment makes her look gently concerned and protective, never frightened. ${isTelugu ? 'You are fluent in Telugu. When asked to write in Telugu, write beautiful, simple Telugu in Telugu script suitable for young children. Keep sentences short and warm.' : ''} Write like a master editor who has cut every unnecessary word. Tight, vivid, rhythmic prose — the kind of sentences a grandmother chooses carefully to make a child lean in and listen. Soothing and calming, with gentle dramatic beats of wonder and warmth that guide the child toward sleep. CRITICAL: Return ONLY valid JSON. Use ONLY straight ASCII double quotes for JSON structure. Inside string values use only straight single quotes (apostrophes) never curly or smart quotes. No markdown, no preamble.`,
       messages: [{ role: 'user', content: userPrompt }],
     });

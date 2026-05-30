@@ -3,13 +3,16 @@ import { NextResponse } from 'next/server';
 /**
  * Story illustration API
  *
- * Constructs a child-safe Pollinations.ai (FLUX) image URL from a story
- * paragraph's scene_description. The safety wrapper is hardcoded on the
- * server and cannot be bypassed by client-side content.
+ * Generates a child-safe picture book illustration using HuggingFace Inference API
+ * (FLUX.1-schnell). All generation happens server-side — the client receives a
+ * base64 data URL directly, cached in IndexedDB for instant replays.
  *
- * Returns: { imageUrl: string } — client fetches directly from Pollinations,
- * converts to a data URL, and caches in IndexedDB.
+ * Requires: HUGGINGFACE_API_KEY in .env.local
+ * Get a free token at: huggingface.co → Settings → Access Tokens → New token (Read)
  */
+
+const HF_MODEL = 'black-forest-labs/FLUX.1-schnell';
+const HF_API_URL = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
 
 // Per-mood atmosphere hints added to every prompt
 const MOOD_HINT: Record<string, string> = {
@@ -20,16 +23,24 @@ const MOOD_HINT: Record<string, string> = {
   tense:    'deep indigo shadows, soft candlelight, dramatic but gentle and soothing',
 };
 
-// Deterministic seed so the same scene always generates the same image
+// Deterministic seed — same scene always generates the same image
 function hashCode(str: string): number {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
     h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
   }
-  return Math.abs(h) % 99999;
+  return Math.abs(h) % 2_147_483_647; // HF accepts full 32-bit positive seeds
 }
 
 export async function POST(req: Request) {
+  const hfKey = process.env.HUGGINGFACE_API_KEY;
+  if (!hfKey) {
+    return NextResponse.json(
+      { error: 'HUGGINGFACE_API_KEY not configured. Add it to .env.local.' },
+      { status: 503 },
+    );
+  }
+
   try {
     const { scene_description, mood = 'calm', title, story_title } = await req.json();
 
@@ -40,8 +51,6 @@ export async function POST(req: Request) {
     const moodHint = MOOD_HINT[mood] ?? MOOD_HINT.calm;
 
     // ── Safety wrapper + style — non-negotiable, always prepended ──────────
-    // Simple flat-cartoon style: renders faster on flux-schnell, stays clear
-    // and uncluttered, and is highly engaging for children aged 0–6.
     const safePrefix = [
       "simple children's picture book illustration",
       'flat cartoon style',
@@ -60,9 +69,7 @@ export async function POST(req: Request) {
     let seed: number;
 
     if (title && !scene_description) {
-      // ── Portrait mode — iconic character for the intro screen ──────────
-      // Generates the widely-recognised look of the story's protagonist
-      // (Aladdin in blue vest + fez, Cinderella in blue gown, etc.)
+      // ── Portrait mode — iconic character for the intro/cover screen ──────
       contentPrompt = [
         `cartoon character from the children's story "${title}"`,
         'classic recognizable appearance',
@@ -72,9 +79,7 @@ export async function POST(req: Request) {
       ].join(', ');
       seed = hashCode(title + '_portrait');
     } else {
-      // ── Scene mode — story moment with character authenticity ───────────
-      // Including story_title anchors the characters to their iconic look
-      // (Aladdin in his blue vest, Cinderella in her gown, etc.)
+      // ── Scene mode — story moment anchored to iconic character look ───────
       const storyContext = story_title
         ? `authentic characters from the story "${story_title}", ${scene_description}`
         : scene_description;
@@ -84,13 +89,51 @@ export async function POST(req: Request) {
 
     const prompt = `${safePrefix}, ${contentPrompt}`;
 
-    const imageUrl =
-      `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-      `?width=512&height=768&seed=${seed}&nologo=true&enhance=false&model=flux-schnell`;
+    // HuggingFace Inference API — server-side fetch, no Turnstile, no queue limits
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60_000); // HF cold-start can be slow
 
-    return NextResponse.json({ imageUrl });
+    let hfRes: Response;
+    try {
+      hfRes = await fetch(HF_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${hfKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: prompt,
+          parameters: {
+            num_inference_steps: 4,  // schnell is optimised for 4 steps
+            seed,
+            width: 512,
+            height: 768,
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch {
+      clearTimeout(timeoutId);
+      return NextResponse.json({ error: 'Illustration fetch timed out' }, { status: 502 });
+    }
+
+    if (!hfRes.ok) {
+      const body = await hfRes.text().catch(() => '');
+      console.error('HuggingFace error:', hfRes.status, body.slice(0, 300));
+      // 503 = model loading (cold start) — client should retry after a few seconds
+      return NextResponse.json({ error: 'Illustration service unavailable' }, { status: hfRes.status === 503 ? 503 : 502 });
+    }
+
+    // HuggingFace returns raw image bytes directly (content-type: image/jpeg or image/png)
+    const arrayBuffer = await hfRes.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const contentType = hfRes.headers.get('content-type') ?? 'image/jpeg';
+    const dataUrl = `data:${contentType};base64,${base64}`;
+
+    return NextResponse.json({ dataUrl });
   } catch (error) {
     console.error('Illustrate route error:', error);
-    return NextResponse.json({ error: 'Failed to build illustration URL' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate illustration' }, { status: 500 });
   }
 }

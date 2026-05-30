@@ -21,41 +21,33 @@ export async function fetchIllustrationDataUrl(
   const cached = await getIllustration(key);
   if (cached) return cached;
 
-  // 2. Build server request
+  // 2. Call our API — which fetches server-side from Pollinations and returns a data URL.
+  //    The timeout here covers the full server round-trip including Pollinations generation.
   const isPortrait = paraIdx === -1;
   const body = isPortrait
     ? { title: sceneDescOrTitle, mood }
     : { scene_description: sceneDescOrTitle, mood, story_title: storyTitle };
 
   try {
-    const res = await fetch('/api/stories/illustrate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const { imageUrl } = await res.json() as { imageUrl?: string };
-    if (!imageUrl) return null;
-
-    // 3. Fetch image with configurable timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    let imgRes: Response;
+    let res: Response;
     try {
-      imgRes = await fetch(imageUrl, { signal: controller.signal });
+      res = await fetch('/api/stories/illustrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
     } catch {
       clearTimeout(timeoutId);
       return null;
     }
-    if (!imgRes.ok) return null;
 
-    const blob = await imgRes.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror   = reject;
-      reader.readAsDataURL(blob);
-    });
+    if (!res.ok) return null;
+    const { dataUrl } = await res.json() as { dataUrl?: string };
+    if (!dataUrl) return null;
 
     setIllustration(key, dataUrl); // persist for instant replay
     return dataUrl;
