@@ -327,9 +327,8 @@ export async function generateDailyStories(
     });
 
     onStoryReady?.(dailyStory, i);
-
-    // Kick off illustrations immediately after each story text is ready
-    kickOffIllustrations(dailyStory);
+    // Illustrations are now generated on-demand when user taps play (preGenerateAllIllustrations)
+    // NOT here at story generation time — doing so flooded Pollinations with 33 requests at once
   }));
 
   const tomorrowTeaser = pickTomorrowTeaser(profile, slots.map((s: DailySlot) => s.category));

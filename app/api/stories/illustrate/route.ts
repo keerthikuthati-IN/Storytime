@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
 
 /**
- * Story illustration API — Google Imagen 3
+ * Story illustration API — Pollinations.ai FLUX
  *
- * Generates rich children's storybook illustrations using Google Imagen 3.
- * All generation happens server-side; the client receives a base64 PNG data URL
+ * Generates children's storybook illustrations via Pollinations.ai (free, no API key).
+ * All generation happens server-side; the client receives a base64 JPEG data URL
  * cached in IndexedDB for instant replays.
- *
- * Requires: GOOGLE_AI_API_KEY in environment variables (Google AI Studio key).
  */
 
 const STYLE_ANCHOR =
@@ -34,11 +32,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'scene_description or title required' }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
-    }
-
     const isPortrait = !scene_description && !!title;
     const palette = MOOD_TONE[mood] ?? MOOD_TONE.calm;
     const culturalHint = language === 'telugu' ? INDIAN_HINT : '';
@@ -57,40 +50,34 @@ export async function POST(req: Request) {
       'SAFETY: Wonder and kindness only. No violence, no darkness, no scary elements.',
     ].filter(Boolean).join(' ');
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: '3:4',   // portrait format matching story player layout
-            safetySetting: 'block_few', // allow storybook content
-          },
-        }),
-      }
-    );
+    const encodedPrompt = encodeURIComponent(prompt);
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const url =
+      `https://image.pollinations.ai/prompt/${encodedPrompt}` +
+      `?model=flux-schnell&width=512&height=768&nologo=true&seed=${seed}`;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Imagen 3 error:', response.status, errText);
-      return NextResponse.json({ error: 'Imagen 3 generation failed' }, { status: 500 });
+    // Retry up to 4 times on 402 (queue full) with 20s back-off between attempts
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 20_000 * attempt));
+      response = await fetch(url, { signal: AbortSignal.timeout(90_000) });
+      if (response.status !== 402) break;
+      console.warn(`Pollinations 402 (queue full) — retry ${attempt + 1}/3 in ${20 * (attempt + 1)}s`);
     }
 
-    const data = await response.json() as {
-      predictions?: Array<{ bytesBase64Encoded?: string; mimeType?: string }>;
-    };
+    if (!response || !response.ok) {
+      console.error('Pollinations error:', response?.status, await response?.text());
+      return NextResponse.json({ error: 'Image generation failed' }, { status: 500 });
+    }
 
-    const prediction = data.predictions?.[0];
-    if (!prediction?.bytesBase64Encoded) {
-      console.error('Imagen 3: no image in response', JSON.stringify(data));
+    const buffer = await response.arrayBuffer();
+    if (!buffer.byteLength) {
+      console.error('Pollinations: empty response');
       return NextResponse.json({ error: 'No image generated' }, { status: 500 });
     }
 
-    const mimeType = prediction.mimeType ?? 'image/png';
-    const dataUrl = `data:${mimeType};base64,${prediction.bytesBase64Encoded}`;
+    const base64 = Buffer.from(buffer).toString('base64');
+    const dataUrl = `data:image/jpeg;base64,${base64}`;
 
     return NextResponse.json({ dataUrl });
   } catch (error) {

@@ -9,7 +9,7 @@ import { illustrationKey, getIllustration, setIllustration } from './illustratio
  */
 
 // ── Global queue: max 2 Imagen 3 calls in-flight at a time ──────────────────
-const MAX_CONCURRENT = 2;
+const MAX_CONCURRENT = 1; // Pollinations allows 1 concurrent request per IP
 let _queueRunning = 0;
 const _queue: Array<() => void> = [];
 
